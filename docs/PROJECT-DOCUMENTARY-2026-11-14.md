@@ -243,7 +243,8 @@ Final commit of this session (documentary, marker design, observer script, `.git
 ### 10.2 Files of interest
 - `DEVELOMPENT_PLAN.md`: phased plan (note filename typo, kept as-is).
 - `CLAUDE.md`: project rules, state model, safety rules.
-- `README.md`: running log.
+- `README.md`: plain-language overview for non-developers.
+- `docs/RUNNING-LOG.md`: detailed running log (formerly the root README).
 - `setup-vpn-gateway-alpha.sh`: read-only diagnostic, v0.1.0-alpha.
 - `scripts/baseline-readonly.sh`: read-only baseline for Pi and Dell.
 - `scripts/happd-observe.py`: passive socket observer (get-privilege and heartbeat only; redacts push token).
