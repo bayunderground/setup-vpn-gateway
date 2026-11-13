@@ -242,7 +242,7 @@ Each step needs the user's approval before the next one starts.
 - Remote: `https://github.com/bayunderground/setup-vpn-gateway.git`, branch `main`.
 - Latest pushed commit at the time of writing: `63d06ee` (new-host script tolerance fix). Earlier: `ca66186` (README install section), `fafaafa` (new-host script), `2fe6f03`, `0f69013`, `37e4ee8`, `aad6f62`.
 - Pi clone: `~/setup-vpn-gateway`, updated to `63d06ee`.
-- `CLAUDE.md`: deleted in the working tree at the user's request. The deletion is staged. Not committed unless the user says so.
+- `CLAUDE.md`: deleted at the user's request. The deletion is committed in `5b611e5`.
 - Untracked before this document: `.gitignore` and `scripts/happd-observe.py` (both pushed in `aad6f62`).
 
 ### 7.1 Files
@@ -354,7 +354,7 @@ git log --oneline -5
 | Pending | Android gateway, DNS, prefix, exit IP | USER |
 | Pending | Dell Happ: keep, move to Pi, or replace | USER |
 | Pending | Dell rules 8000 and 9000 to 9010, table 2022, `tun0` | USER (after Android is settled) |
-| Pending | Commit the `CLAUDE.md` deletion | USER |
+| 2026-11-14 | Commit the `CLAUDE.md` deletion (done in `5b611e5`, together with this document) | USER |
 
 ---
 
