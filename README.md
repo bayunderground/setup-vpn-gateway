@@ -38,6 +38,18 @@ Please answer these when you can. None of them change anything on their own.
 
 3. **Your ON/OFF choice (once the design is approved).** You will set the choice with a command, alongside the Happ app toggle. The exact steps will be written here when they exist.
 
+## Setting up a new device (Raspberry Pi)
+
+One command. It asks for your sudo password once:
+
+```bash
+git clone https://github.com/bayunderground/setup-vpn-gateway.git ~/setup-vpn-gateway && bash ~/setup-vpn-gateway/scripts/new-host-setup.sh
+```
+
+The script installs packages, keeps nftables off, checks Happ, updates the project, installs a sudo rule for checks without a password, and sets up a check that runs at every boot. The report goes to `/var/log/vpn-gateway/boot-baseline.log`. The script does not change routing or the firewall. To remove what it added: `bash ~/setup-vpn-gateway/scripts/new-host-setup.sh --uninstall`.
+
+Happ is installed separately, with its own installer. The script tells you if Happ is missing.
+
 ## Safety rules
 
 - Do not run `happ-diag --repair`. It restarts Happ.
