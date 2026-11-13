@@ -1,0 +1,27 @@
+# Secrets and live Happ state: never commit
+.env
+*.env
+*.key
+*.pem
+*.p12
+*.pfx
+*.kdbx
+happ.conf
+Happ.conf
+subs.db
+*.db
+*.sqlite
+*.sqlite3
+*.strace
+*.pcap
+*.pcapng
+id_rsa
+id_ed25519
+credentials*
+secrets*
+vpn-config*.json
+happd-*.json
+
+# Local captures and logs
+*.log
+/tmp/
