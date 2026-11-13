@@ -125,3 +125,10 @@ Conclusion (VERIFIED for the route and traffic, INFERRED for the gateway):
 - Dell's rule `8000: from 192.168.0.185 lookup 2022` is LIVE. Do NOT remove it: it is Android's current VPN exit path.
 - Dell's Happ 2.17.1 is therefore not an unused leftover; it is the working Android exit today.
 - The Pi is not in Android's path right now.
+
+## Android gateway check (2026-11-14 ~01:35) — UNRESOLVED
+
+- User report: Android's gateway is `192.168.0.185`, NOT the expected `192.168.0.105`. That value equals Android's own address, so it may be a misread of the IP field.
+- `adb` is not installed on Dell, so Android settings cannot be read remotely.
+- Neighbour table on Dell: `192.168.0.185 lladdr f0:35:75:23:34:62 REACHABLE`.
+- Still needed: exact text of IP address, Gateway, Prefix length, DNS 1/2, and DHCP/static from Android's Wi-Fi details screen (or a screenshot).
