@@ -97,3 +97,10 @@ The command for rule 8000 is listed in `docs/user-actions-2026-11-14.md`. Do not
 - Do not enable `nftables.service`; the stock `/etc/nftables.conf` starts with `flush ruleset`.
 - Do not flush the global ruleset or remove routing rules without an approved plan.
 - Unknown Happ state must be treated as disabled-unsafe: fail closed, never as Happ OFF.
+
+## Observations 2026-11-14 ~01:20 (Android reachability)
+
+- Dell: `ip neigh` shows `192.168.0.185 FAILED`; no ARP reply; `ping` 100% loss.
+- Pi (`pi5home`): `ping 192.168.0.185` 100% loss; `ip neigh` `FAILED` on `wlan0`.
+- Dell non-root `tcpdump` on `wlp8s0`: "You don't have permission to perform this capture". Root is required; the sudo password was not provided.
+- Conclusion: Android is off, asleep, or on another address/network. Its gateway cannot be checked until it answers.
