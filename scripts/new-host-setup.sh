@@ -51,7 +51,8 @@ fi
 sudo -v
 
 say "1. Packages"
-sudo apt-get update -qq
+sudo apt-get update -qq --allow-releaseinfo-change ||
+    info "WARNING: apt update reported errors (often an unrelated third-party repo). Continuing with the existing package lists."
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${PACKAGES[@]}"
 info "installed: ${PACKAGES[*]}"
 
