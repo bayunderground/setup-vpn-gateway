@@ -22,11 +22,29 @@ Interpretation:
 - Happ OFF removes the TUN and xray, and restores `wlan0` as the default route.
 - The daemon reports no managed process and no TUN; this is the first positive OFF evidence collected from the Pi.
 
-## Happ ON — pending
+## Happ ON — 2026-11-14 01:07 +03:00 (VERIFIED)
 
-Next: set Happ to ON, tell me, and rerun the same script. Compare:
-- Whether `happ-xray` returns and the main default route switches to it.
-- Whether xray appears as a managed process again.
-- Whether the daemon IPC status changes in any way.
+| Item | OFF | ON |
+|---|---|---|
+| `happd.service` | active, pid 990 | active, pid 990 (unchanged) |
+| Managed processes | 0 | 1: `xray-core` (xray, pid changes per run) |
+| `happ-xray` TUN | absent | UP, `172.19.0.1/30` |
+| Main default route | `wlan0` only | `default dev happ-xray metric 1` **plus** `default via 192.168.0.1 dev wlan0 metric 600` |
+| Main route `172.19.0.0/30` | absent | `dev happ-xray` |
+| Policy rules | unchanged | unchanged |
+| nftables / forwarding | empty / 0 | empty / 0 |
 
-Raw OFF output was saved on the Pi at `/tmp/opencode/pi-happ-off.txt` (not in the repo).
+Interpretation:
+- Happ ON adds the TUN, the xray process, and a higher-priority default route through `happ-xray` (metric 1). The `wlan0` default (metric 600) remains as a fallback.
+- That fallback is exactly what the design must prevent for clients. For the Pi itself it is normal behavior. For forwarded client traffic, the gateway must drop anything not leaving via `happ-xray`.
+- `happd` stays running in both states, so the daemon's active state does not distinguish OFF from ON.
+- The daemon IPC answered `success` in both states. The response does not include an enabled/disabled field, so it is not a usable intent signal yet.
+
+Raw outputs are on the Pi at `/tmp/opencode/pi-happ-off.txt` and `/tmp/opencode/pi-happ-on.txt` (not in the repo).
+
+## Summary
+
+- OFF and ON differ in the TUN, xray process, and default route (metric 1 via `happ-xray`).
+- The daemon's active state and IPC status are identical in both states, so neither proves intent.
+- The existing signals (TUN, xray, route) reflect readiness, not the user's intent. This matches the CLAUDE.md warning.
+- Still needed: a reliable Happ enabled/disabled signal, or a user-controlled marker.
