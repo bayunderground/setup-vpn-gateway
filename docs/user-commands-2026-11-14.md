@@ -4,6 +4,8 @@ Read-only unless marked otherwise. Run the commands on the machine named in each
 
 ## On the Pi (`pi5home`, 192.168.0.118)
 
+Note: the local commits are not pushed to GitHub yet, so the Pi's clone does not have `scripts/baseline-readonly.sh`. `git pull` says "Already up to date" for that reason. Once the commits are pushed, the command below works.
+
 Update the repo and run the read-only baseline (safe to repeat):
 
 ```bash
@@ -40,12 +42,20 @@ systemctl is-active happd.service
 /opt/happ/bin/happd --version 2>/dev/null || echo "no happd --version"
 ```
 
-Check whether Android is currently using Dell's forwarded path (read-only):
+Check whether Android is currently using Dell's forwarded path (read-only).
+Note: Dell has no `/proc/net/nf_conntrack` (conntrack not loaded), so do not use it for this check.
 
 ```bash
-grep "192.168.0.185" /proc/net/nf_conntrack | head
 ip neigh show 192.168.0.185
 ping -c3 -W2 192.168.0.185
+```
+
+Observed 2026-11-14 on Dell: ARP `192.168.0.185 FAILED`, ping `Destination Host Unreachable`. Android is currently not answering at `192.168.0.185`.
+
+To see whether Dell forwards any Android traffic, capture for 30 seconds (read-only, needs `tcpdump`; install with `sudo apt-get install -y tcpdump` if missing):
+
+```bash
+sudo timeout 30 tcpdump -ni wlp8s0 host 192.168.0.185 -c 20
 ```
 
 HOLD — do not run until Android's gateway is confirmed AND you approve:
