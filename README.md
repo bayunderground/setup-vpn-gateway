@@ -104,3 +104,10 @@ The command for rule 8000 is listed in `docs/user-actions-2026-11-14.md`. Do not
 - Pi (`pi5home`): `ping 192.168.0.185` 100% loss; `ip neigh` `FAILED` on `wlan0`.
 - Dell non-root `tcpdump` on `wlp8s0`: "You don't have permission to perform this capture". Root is required; the sudo password was not provided.
 - Conclusion: Android is off, asleep, or on another address/network. Its gateway cannot be checked until it answers.
+
+## Dell 30-second capture (2026-11-14 ~01:25)
+
+- Command: `timeout 30 sudo -n /usr/bin/tcpdump -ni wlp8s0 host 192.168.0.185 -c 20` (narrow sudoers rule from `docs/new-host-commands.md`).
+- Result: `0 packets captured`, `0 packets received by filter`.
+- Interpretation: Dell saw no traffic to or from Android during the window. Dell is not currently forwarding any Android traffic, and Android is not active on the LAN.
+- Still open: Android's gateway settings (needed before rule 8000 can be decided).
