@@ -147,3 +147,27 @@ Without `adb`, read IP, gateway, prefix, DNS, and static/DHCP from Android's Wi-
 - Hostname: `sudo hostnamectl set-hostname raspberrypi`, then restore `/etc/hosts`.
 - Sudoers: `sudo rm /etc/sudoers.d/vpn-gateway-readonly`.
 - Dell rule 8000 (if removed by mistake): `sudo ip rule add priority 8000 from 192.168.0.185 lookup 2022`.
+
+## Dell: allow the Android capture without a password (root, optional)
+
+Gives `bliss` NOPASSWD for exactly one tcpdump command (fixed interface, host, and count). Nothing else is granted.
+
+```bash
+sudo tee /etc/sudoers.d/vpn-gateway-tcpdump >/dev/null <<'SUDOERS'
+bliss ALL=(root) NOPASSWD: /usr/bin/tcpdump -ni wlp8s0 host 192.168.0.185 -c 20
+SUDOERS
+sudo chmod 0440 /etc/sudoers.d/vpn-gateway-tcpdump
+sudo visudo -c
+```
+
+Then the capture can run without a password:
+
+```bash
+timeout 30 sudo -n /usr/bin/tcpdump -ni wlp8s0 host 192.168.0.185 -c 20
+```
+
+Remove after testing:
+
+```bash
+sudo rm /etc/sudoers.d/vpn-gateway-tcpdump
+```
