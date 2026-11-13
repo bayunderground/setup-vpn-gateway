@@ -1,3 +1,5 @@
+> Русская версия: [README_RU.md](README_RU.md)
+
 # Shared VPN for the home network (Raspberry Pi)
 
 ## What this project is
