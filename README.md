@@ -111,3 +111,17 @@ The command for rule 8000 is listed in `docs/user-actions-2026-11-14.md`. Do not
 - Result: `0 packets captured`, `0 packets received by filter`.
 - Interpretation: Dell saw no traffic to or from Android during the window. Dell is not currently forwarding any Android traffic, and Android is not active on the LAN.
 - Still open: Android's gateway settings (needed before rule 8000 can be decided).
+
+## Android online check (2026-11-14 ~01:32)
+
+- Android `192.168.0.185` is ONLINE (user turned it on with the old settings).
+- Dell ARP: `192.168.0.185 lladdr f0:35:75:23:34:62 REACHABLE` (matches the documented MAC).
+- Pi ARP: `192.168.0.185 lladdr f0:35:75:23:34:62 REACHABLE` (earlier FAILED; now resolved).
+- Dell 20-packet capture: Android TCP to `172.217.114.4:443` seen on `wlp8s0`. Frames reached Dell's Wi-Fi NIC, so Android sends through Dell as its gateway (INFERRED; the user's "old settings" are the gateway check still to be confirmed).
+- `ip route get 172.217.114.4 from 192.168.0.185 iif wlp8s0` -> `via 172.18.0.2 dev tun0 table 2022`.
+- Dell `tun0` traffic in 10 s: tx +460,695 B, rx +460,975 B. Android traffic is flowing through Dell's Happ TUN now.
+
+Conclusion (VERIFIED for the route and traffic, INFERRED for the gateway):
+- Dell's rule `8000: from 192.168.0.185 lookup 2022` is LIVE. Do NOT remove it: it is Android's current VPN exit path.
+- Dell's Happ 2.17.1 is therefore not an unused leftover; it is the working Android exit today.
+- The Pi is not in Android's path right now.
