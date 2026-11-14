@@ -260,8 +260,8 @@ Final commit of this session (documentary, marker design, observer script, `.git
 
 ## 11. Known issues and discrepancies
 
-1. OS: `DEVELOMPENT_PLAN.md` and `CLAUDE.md` say Bookworm. The Pi is trixie. Correct the docs.
-2. Hostname: docs say `pi5os` or `raspberrypi`. The verified value is `pi5home`.
+1. OS: `DEVELOMPENT_PLAN.md` and `CLAUDE.md` said Bookworm. The Pi is trixie. **Fixed 2026-11-14.**
+2. Hostname: docs said `pi5os` or `raspberrypi`. The verified value is `pi5home`. **Fixed 2026-11-14.**
 3. Android: `user-commands-2026-11-14.md` records Android unreachable (ARP FAILED). The handoff records it online and routed through Dell. The later record is more likely correct, but the older text is still in the file.
 4. Duplicate docs: `docs/pi-reinstall.md` and `docs/new-host-commands.md` overlap.
 5. Baseline note: `baseline-2026-11-14-pi.md` said `mode` in `Happ.conf` might reflect enabled/disabled. Disproved: it is the UI theme (`Dark`).
@@ -377,4 +377,5 @@ Do not run `sudo systemctl enable nftables`. The stock config starts with `flush
 - **Built:** `gateway/happ_watch.py` (watcher), `gateway/gateway_mode.py` (read-only decision), 38 unit tests, and an updated `scripts/new-host-setup.sh` that installs `strace`, copies the gateway code to `/usr/local/lib/vpn-gateway`, and enables `vpn-gateway-watch.service` at boot.
 - **Not built:** the firewall and routing controller. No nftables, routing, or sysctl change has been made.
 - **New `CLAUDE.md`** written for assistants. It replaces the removed file.
-- **Open:** the Pi has not yet run the updated installer (needs the sudo password). After a reboot with Happ OFF, clients stay blocked until Happ is toggled.
+- **Installed (03:02):** the user ran `new-host-setup.sh` on the Pi. Watcher, read-only sudo rule, and boot baseline are installed and enabled. The watcher is active and shows Happ ON at 03:14.
+- **Open:** after a reboot with Happ OFF, clients stay blocked until Happ is toggled.

@@ -10,12 +10,23 @@ This project is an attempt to let several devices in your home (an Android phone
 
 **Right now, nothing new is set up.** The Pi does not share its VPN with anyone yet, and the project is still in the investigation stage. One thing is already happening: the phone's traffic goes through the VPN on `dell` (an older setup), and that is unchanged.
 
+## Devices and addresses
+
+| Device | Name | IP address | Note |
+|---|---|---|---|
+| Raspberry Pi 5 (**default device**) | `pi5home` | `192.168.0.118` | Future shared VPN gateway, Wi-Fi (`wlan0`) |
+| Computer | `dell` | `192.168.0.105` | Still runs its own Happ (version 2.17.1) |
+| Phone | Android | `192.168.0.185` | Client, static IP |
+| Router | — | `192.168.0.1` | Default gateway for the whole network |
+
+Open the Pi from another computer: `ssh bliss@192.168.0.118`
+
 ## Status
 
 | Part | Status |
 |---|---|
 | Pi can be checked safely (read-only) | Done |
-| See whether Happ is switched ON or OFF (from the Happ GUI) | Done. A watcher runs at every boot and follows your ON/OFF choice. Not yet installed on the Pi |
+| See whether Happ is switched ON or OFF (from the Happ GUI) | Done and installed on the Pi (2026-11-14, 03:02). The watcher runs at every boot and follows your ON/OFF choice |
 | Share the Pi's VPN with the phone and computer | Not started. The watcher is ready; the traffic rules are not written yet |
 | Blocking clients when the VPN drops | Not started. Planned together with the traffic rules |
 

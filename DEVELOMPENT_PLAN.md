@@ -28,8 +28,8 @@ LAN access should remain available where technically possible. IPv6 forwarding/N
 | Item | Observed value |
 |---|---|
 | Device | Raspberry Pi 5 |
-| OS | Raspberry Pi OS / Debian Bookworm, aarch64 |
-| Hostname | `pi5os` previously; another diagnostic prompt showed `raspberrypi` — verify |
+| OS | Raspberry Pi OS / Debian 13 (trixie), aarch64 (verified 2026-11-14) |
+| Hostname | `pi5home` (verified 2026-11-14) |
 | LAN interface | `wlan0` |
 | LAN address | `192.168.0.118/24` |
 | Router | `192.168.0.1` |

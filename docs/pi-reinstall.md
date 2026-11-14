@@ -135,6 +135,6 @@ Expected:
 
 ## Rollback
 
-- Hostname: `sudo hostnamectl set-hostname raspberrypi` and restore `/etc/hosts`.
+- Hostname (original name before this project was `raspberrypi`): `sudo hostnamectl set-hostname raspberrypi` and restore `/etc/hosts`.
 - Packages: `sudo apt-get remove --purge nftables` (only if you do not want it).
 - sudoers: `sudo rm /etc/sudoers.d/vpn-gateway-readonly`.

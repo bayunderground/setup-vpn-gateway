@@ -57,8 +57,8 @@ Unknown must fail closed, not be treated as disabled.
 
 ## 3. Current Pi facts (observed)
 
-- Device: Raspberry Pi 5, hostname previously reported as `pi5os`; shell prompt currently showed `raspberrypi` (verify actual hostname)
-- OS: Raspberry Pi OS / Debian Bookworm, aarch64
+- Device: Raspberry Pi 5, hostname `pi5home` (verified 2026-11-14)
+- OS: Raspberry Pi OS / Debian 13 (trixie), aarch64 (verified 2026-11-14)
 - LAN interface: `wlan0`
 - Pi LAN address: `192.168.0.118/24`
 - Router: `192.168.0.1`

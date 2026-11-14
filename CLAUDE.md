@@ -4,13 +4,15 @@ Instructions for AI assistants working in this repository. Read this first, then
 
 ## What this project is
 
-**Default host: `pi`** (`pi5home`, `192.168.0.118`, user `bliss`). Any command, script, or check that does not name a host runs on the Pi. Commands for Dell (`dell`, `192.168.0.105`) or Android must say so explicitly.
+**Default host: `pi`** (`pi5home`, `192.168.0.118`, user `bliss`). Any command, script, or check that does not name a host runs on the Pi. Commands for Dell (`dell`, `192.168.0.105`) or Android (`192.168.0.185`) must say so explicitly.
+
+Access: `ssh bliss@192.168.0.118` (from Dell). The Pi's `sudo` needs a password, except the read-only rule.
 
 A one-click install for a Raspberry Pi 5 (`pi5home`, `192.168.0.118`) that shares its Happ VPN with the home network. Clients are an Android phone (`192.168.0.185`) and the Ubuntu computer `dell` (`192.168.0.105`). The user turns Happ ON and OFF in the Happ GUI as usual, and the gateway follows that choice. Clients are pointed at the Pi once, in their Wi-Fi settings. Nothing else is manual.
 
 ## Current state
 
-- `scripts/new-host-setup.sh` installs everything the Pi needs. It has not yet been re-run successfully on the Pi, because it needs the user's sudo password.
+- `scripts/new-host-setup.sh` is installed and has run on the Pi (2026-11-14, 03:02). It installed the watcher, the read-only sudo rule, and the boot baseline. All three are enabled.
 - `gateway/happ_watch.py`: a read-only watcher that runs as a systemd service at boot. It reads the Happ GUI's control messages and publishes the user's intent to `/run/vpn-gateway/state.json`.
 - `gateway/gateway_mode.py`: decides the client mode (ORDINARY, VPN_EXIT, or BLOCK). It only reads and prints. It applies nothing.
 - The firewall and routing controller is **not built**. No nftables, routing, or sysctl change is approved or made.

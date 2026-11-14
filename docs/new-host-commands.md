@@ -146,7 +146,7 @@ Without `adb`, read IP, gateway, prefix, DNS, and static/DHCP from Android's Wi-
 
 ## Rollback
 
-- Hostname: `sudo hostnamectl set-hostname raspberrypi`, then restore `/etc/hosts`.
+- Hostname (original name before this project was `raspberrypi`): `sudo hostnamectl set-hostname raspberrypi`, then restore `/etc/hosts`.
 - Sudoers: `sudo rm /etc/sudoers.d/vpn-gateway-readonly`.
 - Dell rule 8000 (if removed by mistake): `sudo ip rule add priority 8000 from 192.168.0.185 lookup 2022`.
 

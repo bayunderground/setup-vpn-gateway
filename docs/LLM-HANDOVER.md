@@ -42,7 +42,7 @@ The user accepted this design on 2026-11-14 with the trace-based approach descri
 
 | Host | Address | Role | Notes |
 |---|---|---|---|
-| Pi `pi5home` | `192.168.0.118` on `wlan0` | Future gateway | Raspberry Pi 5, Debian 13 (trixie), aarch64, kernel 6.18.29+rpt-rpi-2712. User `bliss`, SSH key login. Passwordless `sudo` only for read-only commands |
+| Pi `pi5home` (**default host**) | `192.168.0.118` on `wlan0` | Gateway host. Watcher installed and running | Raspberry Pi 5, Debian 13 (trixie), aarch64, kernel 6.18.29+rpt-rpi-2712. User `bliss`, SSH key login (`ssh bliss@192.168.0.118`). Passwordless `sudo` only for the read-only rule and the watcher's own unit |
 | Dell `dell` | `192.168.0.105` on `wlp8s0` | Client, and today also a VPN exit for Android | Ubuntu 24.04, kernel 6.17, x86_64. Runs its own Happ 2.17.1 |
 | Android | `192.168.0.185` (static, USER) | Client | MAC `f0:35:75:23:34:62`. Gateway, prefix and DNS not confirmed |
 | Router | `192.168.0.1` | LAN default gateway | |
@@ -64,7 +64,11 @@ Hostname on the Pi: `pi5home` (static). Some prompts show `raspberrypi`, which i
 
 Do not read, print, or commit `Happ.conf` values beyond key names. It can contain server data.
 
-### 2.3 Pi network state (VERIFIED, 02:20 check, Happ OFF)
+### 2.3 Pi network state
+
+**Latest check, 2026-11-14 03:14 (VERIFIED):** Happ is ON. `happ-xray` is UP at `172.19.0.1/30`. Default routes: `default dev happ-xray metric 1` and `default via 192.168.0.1 dev wlan0 metric 600`. The watcher reports `intent=ENABLED process=up`. `ip_forward=0`. `nftables.service` disabled. `happd` PID 990, active. The watcher service is active, with its `strace` child attached to PID 990.
+
+**Earlier check, 2026-11-14 02:20 (VERIFIED, Happ OFF):**
 
 - `ip_forward=0`. IPv6 forwarding off.
 - Default route only via `wlan0`: `default via 192.168.0.1 dev wlan0 metric 600`.
@@ -214,7 +218,7 @@ These come from the user's own specification and the earlier plan. Keep them unl
 
 ### 5.4 Build order (user-approved)
 
-1. One-click install and remove script on the Pi (exists, needs re-run).
+1. One-click install and remove script on the Pi (installed and run on 2026-11-14 at 03:02).
 2. Happ GUI watcher, read-only first: it logs the states it derives, changes nothing else, and is tested while the user toggles Happ.
 3. Gateway controller, in dry-run mode first: prints the nftables and routing plan without applying.
 4. Controlled application on the Pi, with a backup, a rollback, and a test window. Tests: Happ ON, OFF, crash, reboot, Wi-Fi drop.
@@ -232,10 +236,10 @@ Each step needs the user's approval before the next one starts.
 | `scripts/baseline-readonly.sh` (read-only report) | Exists. Used by the boot service |
 | `scripts/happd-observe.py` (passive observer) | Exists. Shows that observers get no lifecycle events. Not a watcher |
 | `scripts/new-host-setup.sh` (one-click install) | Exists. Partly run on the Pi |
-| Boot service `vpn-gateway-watch.service` | Defined by the installer: runs the watcher at boot, restarts on failure. Not yet verified on the Pi |
-| Boot service `vpn-gateway-boot-baseline.service` | Defined by the installer: read-only report at boot. Not yet verified on the Pi |
+| Boot service `vpn-gateway-watch.service` | Installed and enabled on the Pi (2026-11-14, 03:02). Active. Runs `happ_watch.py` as root |
+| Boot service `vpn-gateway-boot-baseline.service` | Installed and enabled on the Pi (2026-11-14, 03:02). Last result: success |
 | Read-only sudo rule | Active on the Pi. The file name in the docs was not found in `/etc/sudoers.d`. Source not traced |
-| Happ GUI watcher (`gateway/happ_watch.py`) | **Built and unit tested (38 tests). Replayed against the three real Pi captures. Not yet installed on the Pi** (needs the sudo password) |
+| Happ GUI watcher (`gateway/happ_watch.py`) | **Built, unit tested (38 tests), replayed against the three real Pi captures. Installed and running on the Pi since 2026-11-14 03:02** |
 | Gateway decision (`gateway/gateway_mode.py`) | Built, read-only. Prints ORDINARY, VPN_EXIT, or BLOCK. Applies nothing |
 | Gateway controller (nftables, routing, sysctl) | **Not built** |
 | Marker file design | Superseded by the trace-based approach (section 5.2). Kept as fallback in `docs/happ-intent-marker-design-2026-11-14.md` |
@@ -280,7 +284,7 @@ Each step needs the user's approval before the next one starts.
 
 ## 8. Commands
 
-Default host is the Pi (`pi5home`) unless a heading says otherwise.
+Default host is the Pi (`pi5home`, `192.168.0.118`) unless a heading says otherwise. Access from another computer: `ssh bliss@192.168.0.118`.
 
 Run on the Pi as `bliss` unless noted.
 
@@ -341,7 +345,7 @@ git log --oneline -5
 13. **After a reboot the watcher starts UNKNOWN.** If xray is running, it is treated as ENABLED. If it is not running, the gateway stays blocked until the user toggles Happ. This follows the no-inference-from-absence rule, and is a decision for the user (section 10).
 14. **Watcher overhead is not measured** under continuous client traffic. Measure before enabling client forwarding.
 
-1. **Docs contradict the host.** `DEVELOMPENT_PLAN.md` and older docs say Bookworm and `pi5os`. The host is trixie and `pi5home`.
+1. **Docs contradicted the host** (Bookworm, `pi5os`). Corrected in the current docs on 2026-11-14 (trixie, `pi5home`). Historical logs keep their original wording.
 2. **Android record conflict.** `user-commands-2026-11-14.md` records Android offline (ARP FAILED). Later records say online and routed through Dell. The later record is more likely right.
 3. **Duplicate command docs.** `docs/pi-reinstall.md` and `docs/new-host-commands.md` overlap with `scripts/new-host-setup.sh`.
 4. **Restart owner unknown.** After a crash, a restart was seen once but not twice. Test with the GUI idle before relying on it.
@@ -350,7 +354,7 @@ git log --oneline -5
 7. **Boot baseline log grows.** `/var/log/vpn-gateway/boot-baseline.log` is appended at every boot and never rotated.
 8. **Plan conflict.** `DEVELOMPENT_PLAN.md` Phase 8 says not to install the alpha probe as a service. The boot service runs `baseline-readonly.sh`, not the alpha probe. The user asked for it. Keep the distinction clear.
 9. **Old trace files on the Pi** contain xray configuration: `/tmp/opencode/happd-toggle.strace`, `happd-off2.strace`, `happd-crash2.strace`. Not in git. The user said they do not need them deleted. Mention again before any backup.
-10. **Read-only sudo rule file.** The documented file `/etc/sudoers.d/vpn-gateway-readonly` was not in the directory listing, yet `sudo -l` shows the rule. The source is not traced.
+10. **Read-only sudo rule file.** Resolved 2026-11-14: `/etc/sudoers.d/vpn-gateway-readonly` now exists (root, mode 0440), installed by `new-host-setup.sh`.
 11. **`openvpn.service` is enabled** on the Pi but runs `/bin/true`. Not part of this project. Harmless.
 12. **Dell has its own Happ 2.17.1** and carries Android's traffic today. Its rules must not be touched without a decision.
 
@@ -373,7 +377,7 @@ git log --oneline -5
 | 2026-11-14 | Approved the trace-based watcher design, with the build order in section 5.4 | USER (interpreted from the request for documentation) |
 | 2026-11-14 | Create a new `CLAUDE.md` (replaces the removed one) | USER |
 | 2026-11-14 | `scripts/new-host-setup.sh` installs everything needed and runs the watcher at boot | USER |
-| Pending | Re-run `new-host-setup.sh` on the Pi (needs sudo password) | USER |
+| 2026-11-14 03:02 | Installer run on the Pi by the user. Watcher and baseline units enabled and active | USER |
 | Pending | After reboot with Happ OFF, clients stay blocked until Happ is toggled. Accept, or find another safe signal | USER |
 | Pending | Build the GUI watcher (read-only first) | — |
 | Pending | Build the gateway controller, dry-run first | — |
