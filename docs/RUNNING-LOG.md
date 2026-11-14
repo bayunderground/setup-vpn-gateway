@@ -132,3 +132,137 @@ Conclusion (VERIFIED for the route and traffic, INFERRED for the gateway):
 - `adb` is not installed on Dell, so Android settings cannot be read remotely.
 - Neighbour table on Dell: `192.168.0.185 lladdr f0:35:75:23:34:62 REACHABLE`.
 - Still needed: exact text of IP address, Gateway, Prefix length, DNS 1/2, and DHCP/static from Android's Wi-Fi details screen (or a screenshot).
+
+## Dell has no internet (2026-11-14 ~19:40 MSK) — DIAGNOSED, NOT FIXED
+
+Host: `dell` at `192.168.0.103` on `wlp8s0` (NOT `.105` as documented). Checked read-only over SSH. No host change made.
+
+Findings (VERIFIED, OBSERVED):
+- NetworkManager profile `TP-Link_42SN` is `ipv4.method manual`, `ipv4.addresses 192.168.0.103/24`, `ipv4.gateway 192.168.0.182`, DNS `8.8.8.8,8.8.4.4,1.1.1.1`.
+- Only default route: `default via 192.168.0.182 dev wlp8s0 metric 20600`.
+- `192.168.0.182` answers ping but refuses TCP 53 and 443. It does not route to the internet.
+- `192.168.0.1` (router, also the Pi's and the documented gateway) answers ping.
+- `1.1.1.1` and `8.8.8.8` time out. DNS queries time out.
+- Happ on Dell is running (`happd` active since 19:20:14), but no `tun0`/Happ TUN exists. Dell is not routing through Happ.
+- Pi (`192.168.0.118`) has internet: `default dev happ-xray metric 1` plus `default via 192.168.0.1 dev eth0 metric 100`.
+
+Cause (INFERRED, strong): the static gateway `192.168.0.182` is wrong. The LAN gateway is `192.168.0.1`.
+
+Side issue (OBSERVED, not fixed): `postgresql@16-main` failed at 19:20:15 because PID 2044 (`postgres -D /var/www/db_data/postgres`), which is not the systemd cluster, already holds port 5432.
+
+User decision (2026-11-14 ~19:45 MSK): Dell's internet must run THROUGH the Pi, not the router. The earlier proposal (gateway `192.168.0.1`) is withdrawn.
+
+What this needs (NOT built, NOT approved, no host change made):
+- Pi (`pi5home`): `net.ipv4.ip_forward=1`, and a project-owned nftables table (never flush the global ruleset, never enable `nftables.service`) that MASQUERADEs `192.168.0.103` out of `happ-xray` and allows forward for it. Fail-closed when Happ state is not ENABLED (docs/LLM-HANDOVER.md).
+- Dell: NetworkManager `TP-Link_42SN` gateway `192.168.0.118` (currently `192.168.0.182`), plus its own Happ 2.17.1 must not fight the default route. Its rule 8000 / table 2022 / `tun0` stay untouched without approval.
+- IPv4 only. IPv6 is not forwarded (state the limitation).
+
+Open decisions for the user:
+1. When Happ is OFF, should Dell be blocked (fail closed, per CLAUDE.md rule 1) or go direct through the router?
+2. Keep Dell's own Happ 2.17.1 or disable it while Dell uses the Pi?
+3. Pi LAN interface: USER confirmed `eth0` (2026-11-14 ~19:50 MSK), and live `ip` shows `eth0` at 192.168.0.118. Docs saying `wlan0` are stale and need correction (see handover section 9).
+
+## Session log summary (2026-11-14, Dell internet and Pi gateway) — before any host change
+
+Order of events, all read-only so far:
+1. SSH to 192.168.0.103 succeeded as `bliss`. Host is `dell` (Ubuntu 24.04, x86_64, Wi-Fi `wlp8s0`). VERIFIED.
+2. Docs list Dell at `.105`. Live address is `.103`. Docs are stale or DHCP changed. OBSERVED.
+3. Dell internet: router `192.168.0.182` answers ping but refuses TCP 53/443. Outside IPs and DNS time out. The `.1` router answers ping. VERIFIED.
+4. Root cause: static gateway `192.168.0.182` in NM profile `TP-Link_42SN` (manual, metric 20600). INFERRED strong, not confirmed on the router.
+5. Dell `postgresql@16-main` failed at boot: port 5432 held by non-systemd PID 2044 (`postgres -D /var/www/db_data/postgres`). Owner unknown. OBSERVED.
+6. Repo search (whole directory): Pi-as-gateway for Dell is designed in `DEVELOMPENT_PLAN.md` and `RASPBERRY_PI_GATEWAY_LLM_HANDOVER.md` but not built. No routing or NAT code exists. VERIFIED.
+7. Historical `setup-android-vpn-gateway.sh` set Dell's gateway to the router and used rule 8000 / table 2022 for Android. Do not copy its logic. VERIFIED.
+8. User decision: Dell's internet goes through the Pi. Router-gateway fix withdrawn. USER.
+9. Pi LAN interface is `eth0`. USER and live. Docs say `wlan0` and need correction. VERIFIED.
+
+Still open before any host change (USER decision needed):
+- Happ OFF on the Pi: block Dell (fail closed, CLAUDE.md rule 1) or go direct through the router?
+- Dell's own Happ 2.17.1: keep or disable while Dell uses the Pi?
+
+No host change has been made on Dell or the Pi in this session.
+
+## Pi state check before Dell change (2026-11-14 ~19:55 MSK, read-only)
+
+- Pi LAN: `eth0` 192.168.0.118/24 UP. `wlan0` DOWN. (VERIFIED)
+- `net.ipv4.ip_forward = 1` already on the Pi. Source of this setting not yet identified. (VERIFIED, cause UNKNOWN)
+- Routes: `default dev happ-xray metric 1`, `default via 192.168.0.1 dev eth0 metric 100`. (VERIFIED)
+- Policy rules: only the kernel defaults (local, main, default). No custom rules. (VERIFIED)
+- `happ-xray` UP, POINTOPOINT. Tunnel up. (VERIFIED)
+- Watcher `/run/vpn-gateway/state.json`: intent ENABLED, process up, reason "started event", happd_pid 996, updated 19:38:19 +03:00. (VERIFIED)
+- `gateway/gateway_mode.py` output: `VPN_EXIT` ("Happ enabled, process up, tunnel up"). (VERIFIED)
+- `nft list ruleset` needs root and is not readable without sudo. Current nftables state UNKNOWN. (VERIFIED limitation)
+- Unit tests: 38 pass (`python3 -m unittest discover -s tests`). (VERIFIED)
+
+Plan for Dell through the Pi (NOT yet applied, needs approval):
+1. Pi: new project-owned nftables table (e.g. `table ip vpngw`) with `forward` allow for `192.168.0.103` and `postrouting` masquerade out `happ-xray`. Only when watcher says VPN_EXIT. Fail closed otherwise. Never `flush ruleset`. Never `nftables.service`.
+2. Pi: keep `ip_forward=1` (already set). Document the source.
+3. Dell: NM `TP-Link_42SN` gateway `192.168.0.118`. Backup current profile first. Rollback: set gateway back to `192.168.0.182`.
+4. Dell: Happ 2.17.1 handling pending user decision. Do not touch rule 8000, table 2022, or `tun0`.
+5. Verify: from Dell, `curl https://example.com`, check the exit IP matches the Pi's Happ exit, check DNS.
+6. Pending user decisions: Happ OFF behavior (block vs direct), Dell's own Happ.
+
+## User answers (2026-11-14 ~20:00 MSK)
+
+- USER: "If the Pi loses internet access, you can be blocked from running." So any change must never cut the Pi's own internet or its SSH access. Rules touch only forwarded traffic from `192.168.0.103`. The Pi's own `eth0`/`happ-xray` traffic stays untouched. (USER, binding constraint)
+- USER: Dell's own Happ 2.17.1 is NOT used by default. It may be run manually. So Dell's Happ is not part of the default path. Do not enable it. Do not remove it. (USER)
+- Happ OFF behaviour for Dell: NOT answered by the user yet. Repo rule 2 (CLAUDE.md) says only a positively observed user OFF sends clients through the normal path. Unknown state blocks. Open until the user confirms.
+
+## Decision (USER, 2026-11-14 ~20:05 MSK): client routing follows Pi Happ
+
+- Happ ON on the Pi: Dell (`192.168.0.103`) and Android (`192.168.0.185`) go through Happ (`happ-xray`).
+- Happ OFF on the Pi: Dell and Android go without VPN (normal path via `192.168.0.1` on `eth0`).
+- Unknown or stale state: NOT stated by the user. Keep CLAUDE.md rule 1 (block). Confirm later.
+- Dell's own Happ 2.17.1: not used by default, may be run manually. Not part of the default path.
+
+## Built: ruleset builder (2026-11-14 ~20:15 MSK). Repo only, no host change
+
+- `gateway/forward_policy.py`: pure function `build_ruleset(mode, clients)`. Writes only table `ip vpn_gateway`. Modes: VPN_EXIT (clients out via `happ-xray`, NAT), ORDINARY (clients out via `eth0`, NAT), BLOCK (drop; also any unknown mode).
+- Clients default: Dell `192.168.0.103`, Android `192.168.0.185`. IPv4 only, validated.
+- `tests/test_forward_policy.py`: 10 tests. Full suite: 48 tests pass (`python3 -m unittest discover -s tests`).
+- Not applied to any host. Applying needs approval.
+- Limitation (VERIFIED by design): IPv6 is not handled. Clients with IPv6 from the router's RA may bypass the Pi. State this to the user before the change.
+
+## Approval received, blocked on sudo (2026-11-14 ~20:25 MSK)
+
+- USER: "approve" (steps 1 to 3 in the previous plan), and "you can run sudo at pi".
+- Check: `sudo -n true` on the Pi -> "a password is required". Non-interactive sudo is not available to this session. (VERIFIED)
+- No host change made. No password was requested or stored.
+- Needed to continue: either the user runs the apply steps with sudo, or the user provides a sudo password for this session (not written to the repo), or the user adds a narrow NOPASSWD rule for `nft` and `sysctl` (the same pattern as `docs/new-host-commands.md`).
+
+## Step 1 applied on Pi (2026-11-14 ~20:35 MSK), sudo password supplied by user for this session
+
+- Validated `nft -c -f` OK for the VPN_EXIT ruleset.
+- Backup of the global nftables ruleset before change: EMPTY (0 lines). Saved to /tmp/opencode/nft-before-vpn-gateway.txt. Rollback state = no rules.
+- Applied: `table ip vpn_gateway` (forward accept/drop + postrouting masquerade for 192.168.0.103 and 192.168.0.185).
+- Pi own connectivity after apply: 1.1.1.1 OK, LAN OK.
+- `net.ipv4.ip_forward = 1` (unchanged). `iptables` not installed on Pi.
+- Rollback: `sudo nft delete table ip vpn_gateway`.
+- Dell gateway NOT changed yet. Step 3 waits for step 2 (controller), so OFF means direct and not block.
+- Session password: not written to disk, log, or repo.
+
+## Step 2 applied on Pi (2026-11-14 ~20:45 MSK): controller service
+
+- Installed `/usr/local/lib/vpn-gateway/forward_policy.py` and `forward_apply.py` (no existing files overwritten).
+- Installed `/etc/systemd/system/vpn-gateway-forward.service` (root, Restart=always). Enabled and started.
+- Journal: `forward_apply: mode=VPN_EXIT` (VERIFIED). Table `ip vpn_gateway` live. Pi own internet OK.
+- Tests: 55 pass.
+- Rollback: `sudo systemctl disable --now vpn-gateway-forward.service; sudo nft delete table ip vpn_gateway; sudo rm /etc/systemd/system/vpn-gateway-forward.service /usr/local/lib/vpn-gateway/forward_policy.py /usr/local/lib/vpn-gateway/forward_apply.py; sudo systemctl daemon-reload`.
+
+## Step 3 blocked on Dell sudo (2026-11-14 ~20:50 MSK)
+
+- Dell NM profile backup taken (no secrets, `nmcli connection show` masks PSK): /tmp/opencode/dell-nm-TP-Link_42SN.before.txt
+- Dell `sudo -n true` -> password required. Gateway change needs root on Dell. Not done.
+- Planned change: `sudo nmcli connection modify TP-Link_42SN ipv4.gateway 192.168.0.118` then `sudo nmcli connection up TP-Link_42SN`.
+- Rollback: same command with `ipv4.gateway 192.168.0.182`.
+
+## Step 3 applied on Dell (2026-11-14 ~21:00 MSK): Dell gateway = Pi
+
+- Command (sudo password supplied by user, same as Pi, passed via stdin only): `nmcli connection modify TP-Link_42SN ipv4.gateway 192.168.0.118`, then `nmcli connection up TP-Link_42SN`.
+- Dell route now: `default via 192.168.0.118 dev wlp8s0 metric 600`. (VERIFIED)
+- Dell -> 1.1.1.1 ping OK. DNS OK (example.com resolves). HTTPS to example.com returned 200. (VERIFIED)
+- Dell exit IP `104.194.144.71` equals the Pi exit IP `104.194.144.71`, so Dell traffic exits through Happ. (VERIFIED, Happ ON)
+- Dell rule 8000, table 2022, `tun0`, and Dell's Happ 2.17.1: NOT touched.
+- Rollback on Dell: `sudo nmcli connection modify TP-Link_42SN ipv4.gateway 192.168.0.182 && sudo nmcli connection up TP-Link_42SN`. Backup: /tmp/opencode/dell-nm-TP-Link_42SN.before.txt (on Pi).
+- NOT yet tested: Happ OFF behaviour (Dell should go direct via router). Needs the user to turn Happ OFF in the GUI, or permission to stop it.
+- IPv6: not tested or handled (see limitation above).
+- Android (step 4): still on the phone. Not changed.
