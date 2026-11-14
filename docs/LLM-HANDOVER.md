@@ -88,7 +88,11 @@ Do not read, print, or commit `Happ.conf` values beyond key names. It can contai
 ### 2.5 Android
 
 - USER: static IP `192.168.0.185`. Gateway reported once as `192.168.0.185` (probably a misread) and once as "DHCP, as on Dell". **Not confirmed.**
+- VERIFIED 2026-11-14 (Pi, default host): Pi ARP table has `192.168.0.185 lladdr f0:35:75:23:34:62 STALE` on `wlan0`.
+- OBSERVED 2026-11-14 ~03:20 (Pi, `scripts/probe-android-gateway.py`, 120 s passive on `wlan0`): **no ARP and no DHCP messages from the phone.** The phone's ARP cache for its gateway was still valid, so it asked for nothing.
+- INFERRED (Dell capture, 2026-11-14 01:32): the phone's internet packets reached `dell`'s Wi-Fi NIC (`a4:34:d9:24:57:2f`). That only happens if the phone's link-layer next hop is Dell. So the gateway is most likely `192.168.0.105` (`dell`). **Not confirmed.** One check on Dell (sudo password, 30 s capture of the destination MAC of `src 192.168.0.185` frames) confirms or refutes it.
 - UNKNOWN: DNS 1 and 2, prefix (expected `/24`), exit IP from a browser.
+- The Pi cannot force the phone to send gateway ARP or DHCP. Only the phone's own activity or a re-association produces it.
 
 ---
 

@@ -40,13 +40,7 @@ So the plan is: you tell the Pi your choice with a simple setting (a small file 
 
 Please answer these when you can. None of them change anything on their own.
 
-1. **Android network details.** On the phone, open the Wi-Fi settings for your home network and send me:
-   - IP address
-   - Gateway (the address the phone sends traffic to)
-   - Prefix or netmask
-   - DNS servers
-   - Whether the address is set by hand (static) or automatic (DHCP)
-
+1. **Android gateway.** The Pi (default device) checks this with `scripts/probe-android-gateway.py`. In 2 minutes it saw no ARP or DHCP from the phone, so the gateway is not yet confirmed. Traffic that reached `dell` suggests `dell` (`192.168.0.105`). One step confirms it: enter your sudo password on `dell` once, and the check takes 30 seconds. Nothing else is needed from you.
 2. **The computer's VPN (Happ on `dell`).** Do you still use Happ on that computer? If not, should it be removed or left as it is? Nothing will be changed on it until you answer.
 
 3. **Your ON/OFF choice (once the design is approved).** You will set the choice with a command, alongside the Happ app toggle. The exact steps will be written here when they exist.
