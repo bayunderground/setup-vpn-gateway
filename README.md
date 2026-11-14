@@ -13,9 +13,9 @@ This project is an attempt to let several devices in your home (an Android phone
 | Part | Status |
 |---|---|
 | Pi can be checked safely (read-only) | Done |
-| Find out whether Happ is switched ON or OFF | Partly. The Pi can see when the VPN is running, but not your ON/OFF choice yet |
-| Share the Pi's VPN with the phone and computer | Not started. Waiting on the ON/OFF choice and your answers below |
-| Automatic switching when the VPN drops | Not started |
+| See whether Happ is switched ON or OFF (from the Happ GUI) | Done. A watcher runs at every boot and follows your ON/OFF choice. Not yet installed on the Pi |
+| Share the Pi's VPN with the phone and computer | Not started. The watcher is ready; the traffic rules are not written yet |
+| Blocking clients when the VPN drops | Not started. Planned together with the traffic rules |
 
 ## The main problem being solved
 
@@ -46,7 +46,7 @@ One command. It asks for your sudo password once:
 git clone https://github.com/bayunderground/setup-vpn-gateway.git ~/setup-vpn-gateway && bash ~/setup-vpn-gateway/scripts/new-host-setup.sh
 ```
 
-The script installs packages, keeps nftables off, checks Happ, updates the project, installs a sudo rule for checks without a password, and sets up a check that runs at every boot. The report goes to `/var/log/vpn-gateway/boot-baseline.log`. The script does not change routing or the firewall. To remove what it added: `bash ~/setup-vpn-gateway/scripts/new-host-setup.sh --uninstall`.
+The script installs packages (including `strace`), keeps nftables off, checks Happ, updates the project, installs a sudo rule for checks without a password, starts the Happ watcher at every boot, and sets up a read-only check that also runs at every boot. The watcher only reads Happ's messages and writes its state to `/run/vpn-gateway/state.json`. It does not change routing or the firewall. The report goes to `/var/log/vpn-gateway/boot-baseline.log`. To remove what it added: `bash ~/setup-vpn-gateway/scripts/new-host-setup.sh --uninstall`.
 
 Happ is installed separately, with its own installer. The script tells you if Happ is missing.
 

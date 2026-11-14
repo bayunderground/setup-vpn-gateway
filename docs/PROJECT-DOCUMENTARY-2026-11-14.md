@@ -365,3 +365,16 @@ Do not run `sudo systemctl enable nftables`. The stock config starts with `flush
 - **Fail closed**: block client Internet rather than fall back to ordinary Wi-Fi WAN.
 - **Marker**: the planned root-owned file recording user intent (section 9).
 - **Observer**: a socket client that only listens and sends harmless requests.
+
+---
+
+## 18. Later updates (same day)
+
+- **Decision:** the user chose the trace-based watcher over the marker file, so one click (install) is enough and the Happ GUI remains the only switch. Details in `docs/LLM-HANDOVER.md` section 5.2.
+- **Replay against the real captures** found two corrections, both now in code and tests:
+  1. The daemon does not always send a `finished` event after a user stop (sent at 02:05:50, not at 02:06:33). A stop request followed by `Process not found` is the dependable signature.
+  2. After a crash the GUI sends its own stop request about 0.3 s later (02:09:15). That must not count as a user OFF.
+- **Built:** `gateway/happ_watch.py` (watcher), `gateway/gateway_mode.py` (read-only decision), 38 unit tests, and an updated `scripts/new-host-setup.sh` that installs `strace`, copies the gateway code to `/usr/local/lib/vpn-gateway`, and enables `vpn-gateway-watch.service` at boot.
+- **Not built:** the firewall and routing controller. No nftables, routing, or sysctl change has been made.
+- **New `CLAUDE.md`** written for assistants. It replaces the removed file.
+- **Open:** the Pi has not yet run the updated installer (needs the sudo password). After a reboot with Happ OFF, clients stay blocked until Happ is toggled.

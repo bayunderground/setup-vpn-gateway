@@ -1,3 +1,5 @@
+> **Superseded as the primary design (2026-11-14).** The user chose the trace-based GUI watcher, which needs no second click. This marker design is kept as a fallback. See `docs/LLM-HANDOVER.md` section 5.2.
+
 # Happ intent marker: design (2026-11-14)
 
 Status: DESIGN ONLY. Not implemented. Needs user approval before any code or host change.

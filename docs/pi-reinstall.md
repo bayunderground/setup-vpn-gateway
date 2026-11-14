@@ -1,3 +1,5 @@
+> **Superseded (2026-11-14).** Use `scripts/new-host-setup.sh` for install and `--uninstall` for removal. See `docs/LLM-HANDOVER.md`.
+
 # Raspberry Pi reinstall checklist (pi5home)
 
 Target: Raspberry Pi 5, Raspberry Pi OS (Debian 13 trixie, aarch64), hostname `pi5home`.

@@ -1,3 +1,5 @@
+> **Superseded (2026-11-14).** Use `scripts/new-host-setup.sh` for install and `--uninstall` for removal. See `docs/LLM-HANDOVER.md`.
+
 # Commands for a new host (after reinstall)
 
 Consolidated command list for rebuilding the Pi (`pi5home`), checking Dell, and checking Android. Run each block on the machine named in its heading. Commands marked **root** prompt for the sudo password.

@@ -25,3 +25,7 @@ happd-*.json
 # Local captures and logs
 *.log
 /tmp/
+
+# Python caches
+__pycache__/
+*.pyc

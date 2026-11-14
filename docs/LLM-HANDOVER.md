@@ -125,12 +125,14 @@ Events, sent **only to the controlling client (the GUI)**:
 | `finished` | `data`: exit code as a string | `"0"` after a user stop. `"9"` after SIGKILL (crash) |
 | `error` | `data:"Process crashed"` | Emitted before `finished` on a crash |
 | `stdout` | `data`: xray log line | Includes requests to `happ-watchdog` about every 15 s. This is probably a GUI health check |
+| (error reply) | `error:"Process not found: xray-core"` in reply to a `status` | Process is not running. Seen after every user stop, and during the GUI's cleanup after a crash |
 
 Other command names exist in the `happd` binary but are **not probed**: `auto-restart`, `max-restart-attempts`, `restart-delay-ms`, `start-wg`, `stop-wg`, `privilege-level`, `happ-tun`, `happ-xray`, `happ-wg`, `happ-default-tun`, `reclaim-session-processes`, `push-message`. Do not send them: they may change the live tunnel.
 
 ### 3.3 Lifecycle sequences (OBSERVED)
 
-- **User stop (OFF):** `stop` request, then `stopping`. xray runs about 30 ms more, then exits. `finished` with `"0"`. No `error` event. Status then returns `Process not found`. No restart seen within 9 to 12 s, in two cycles.
+- **User stop (OFF):** `stop` request, then `stopping`. xray runs about 30 ms more, then exits. Status then returns `Process not found`. **A `finished` event is not always sent** (sent at 02:05:50, not sent at 02:06:33). The dependable user-stop signature is therefore the stop request followed by `Process not found`. No restart seen within 9 to 12 s, in four cycles.
+- **GUI cleanup after a crash:** about 0.3 s after a crash the GUI sends its own `stop` request, then gets `Process not found` (observed 02:09:15). This must not be read as a user OFF.
 - **User start (ON):** `get-privilege`, then `start`. `started` event. Status returns running, with a new pid.
 - **Crash (SIGKILL):** kernel reports `SIGCHLD`, `CLD_KILLED`, `SIGKILL`. Then `error` `Process crashed`, then `finished` with `"9"`. No automatic restart within 54 s in one test. Restart owner unknown.
 
@@ -168,20 +170,22 @@ These come from the user's own specification and the earlier plan. Keep them unl
 ### 5.1 Components
 
 1. **One-click installer** (`scripts/new-host-setup.sh`): packages, nftables kept off, Happ check, repo update, read-only sudo rule, boot-time read-only report. Status: **written and pushed. Partly run on the Pi.** The first run failed at the apt step because of unrelated third-party repos. That is now tolerated (commit `63d06ee`). The user must run it again.
-2. **Happ GUI watcher** (root service, to be built): observes the GUI's control messages on the `happd` socket in real time and derives the intent. Design in section 5.2.
+2. **Happ GUI watcher** (root service, built): observes the GUI's control messages on the `happd` socket in real time and derives the intent. Design in section 5.2.
 3. **Gateway controller** (to be built): applies the owned nftables table and project routing rules according to the intent state. It must be idempotent, use a lock, and fail closed.
 4. **Client setup**: manual, once, on Android and Dell (Pi `192.168.0.118` as the Wi-Fi gateway).
 
 ### 5.2 Happ GUI watcher (approved approach)
 
-- Attach to `happd` (PID from `systemctl show -p MainPID --value happd.service`) with `strace -f`, filtering `read`, `write`, `sendmsg`, `recvmsg`, and parse the messages in memory.
+- Attach to `happd` (PID from `systemctl show -p MainPID --value happd.service`) with `strace -tt -p PID -e trace=read,write -s 512`. **Do not use `-f`:** it would also trace xray's own network I/O and add heavy overhead. The socket I/O has always been on the main thread (PID = `happd` PID).
+- Parse the messages in memory. Ignore fds 0, 1 and 2 (stdin config and xray logs).
 - **Never write the raw trace to disk.** Start payloads contain the xray configuration. The parser keeps only: action, process-id, request-id, event, and exit code.
-- Derive state:
+- Derive state (this table was corrected on 2026-11-14 after replaying the real captures):
 
 | Observed | Intent state |
 |---|---|
 | `started` event, or a `status` reply with `running:true` | ENABLED |
-| `stop` request followed by `finished` with `"0"` | DISABLED |
+| `stop` request while the process is up, then `finished` with `"0"` or `Process not found` | DISABLED (user stop) |
+| `stop` request while the process is already down (GUI cleanup after a crash) | no change: stays ENABLED down |
 | `error` `Process crashed`, or `finished` with a non-zero code | ENABLED_DOWN (fail closed) |
 | Watcher not running, or attach failed, or parse error | UNKNOWN (fail closed) |
 | Happ restarted, `happd` PID changed | re-attach, UNKNOWN until the next event or a status poll |
@@ -226,12 +230,14 @@ Each step needs the user's approval before the next one starts.
 | `scripts/baseline-readonly.sh` (read-only report) | Exists. Used by the boot service |
 | `scripts/happd-observe.py` (passive observer) | Exists. Shows that observers get no lifecycle events. Not a watcher |
 | `scripts/new-host-setup.sh` (one-click install) | Exists. Partly run on the Pi |
-| Boot service `vpn-gateway-boot-baseline.service` | Defined by the installer. Not yet verified on the Pi |
+| Boot service `vpn-gateway-watch.service` | Defined by the installer: runs the watcher at boot, restarts on failure. Not yet verified on the Pi |
+| Boot service `vpn-gateway-boot-baseline.service` | Defined by the installer: read-only report at boot. Not yet verified on the Pi |
 | Read-only sudo rule | Active on the Pi. The file name in the docs was not found in `/etc/sudoers.d`. Source not traced |
-| Happ GUI watcher | **Not built** |
+| Happ GUI watcher (`gateway/happ_watch.py`) | **Built and unit tested (38 tests). Replayed against the three real Pi captures. Not yet installed on the Pi** (needs the sudo password) |
+| Gateway decision (`gateway/gateway_mode.py`) | Built, read-only. Prints ORDINARY, VPN_EXIT, or BLOCK. Applies nothing |
 | Gateway controller (nftables, routing, sysctl) | **Not built** |
 | Marker file design | Superseded by the trace-based approach (section 5.2). Kept as fallback in `docs/happ-intent-marker-design-2026-11-14.md` |
-| Unit tests | **None yet** |
+| Unit tests (`tests/`) | 38 tests, run with `python3 -m unittest discover -s tests` |
 | Android gateway setup | **Not done.** Values not confirmed |
 | Dell Happ and rules | **Not changed.** Decision pending |
 
@@ -240,7 +246,7 @@ Each step needs the user's approval before the next one starts.
 ## 7. Repository
 
 - Remote: `https://github.com/bayunderground/setup-vpn-gateway.git`, branch `main`.
-- Latest pushed commit at the time of writing: `63d06ee` (new-host script tolerance fix). Earlier: `ca66186` (README install section), `fafaafa` (new-host script), `2fe6f03`, `0f69013`, `37e4ee8`, `aad6f62`.
+- The commit that adds this section is the newest on `main`. Run `git log --oneline -5` for the current head. Earlier important commits: `63d06ee` (apt tolerance), `ca66186` (README install section), `fafaafa` (new-host script).
 - Pi clone: `~/setup-vpn-gateway`, updated to `63d06ee`.
 - `CLAUDE.md`: deleted at the user's request. The deletion is committed in `5b611e5`.
 - Untracked before this document: `.gitignore` and `scripts/happd-observe.py` (both pushed in `aad6f62`).
@@ -287,6 +293,16 @@ python3 ~/setup-vpn-gateway/scripts/happd-observe.py 60 /tmp/opencode/observer.l
 systemctl is-enabled nftables.service           # expect: disabled
 ```
 
+### 8.1a Tests and replay (no root, no network changes)
+
+```bash
+cd ~/setup-vpn-gateway && python3 -m unittest discover -s tests
+python3 gateway/happ_watch.py --replay /path/to/saved.strace   # prints state changes only
+python3 gateway/gateway_mode.py                                # prints the decision (BLOCK until the watcher runs)
+```
+
+The replay prints only state changes (time, intent, process, reason). It never prints trace lines or payloads.
+
 ### 8.2 Install and remove (one click)
 
 ```bash
@@ -316,6 +332,10 @@ git log --oneline -5
 ---
 
 ## 9. Known issues
+
+0. **Stop detection is not one event.** The daemon sometimes omits `finished` after a user stop. The watcher uses the stop request plus `Process not found` (or `finished` 0) as the user-stop signature. A user OFF clicked after a crash cannot be told apart from the GUI's cleanup stop, so the gateway stays blocked until Happ is started again. This is fail-closed, and is a known usability limit.
+13. **After a reboot the watcher starts UNKNOWN.** If xray is running, it is treated as ENABLED. If it is not running, the gateway stays blocked until the user toggles Happ. This follows the no-inference-from-absence rule, and is a decision for the user (section 10).
+14. **Watcher overhead is not measured** under continuous client traffic. Measure before enabling client forwarding.
 
 1. **Docs contradict the host.** `DEVELOMPENT_PLAN.md` and older docs say Bookworm and `pi5os`. The host is trixie and `pi5home`.
 2. **Android record conflict.** `user-commands-2026-11-14.md` records Android offline (ARP FAILED). Later records say online and routed through Dell. The later record is more likely right.
@@ -347,7 +367,10 @@ git log --oneline -5
 | 2026-11-14 | Remove `CLAUDE.md`, do not follow it. This document replaces it | USER |
 | 2026-11-14 | "One click" means install and setup. Happ is still toggled in its GUI | USER |
 | 2026-11-14 | Approved the trace-based watcher design, with the build order in section 5.4 | USER (interpreted from the request for documentation) |
-| Pending | Re-run `new-host-setup.sh` on the Pi | USER |
+| 2026-11-14 | Create a new `CLAUDE.md` (replaces the removed one) | USER |
+| 2026-11-14 | `scripts/new-host-setup.sh` installs everything needed and runs the watcher at boot | USER |
+| Pending | Re-run `new-host-setup.sh` on the Pi (needs sudo password) | USER |
+| Pending | After reboot with Happ OFF, clients stay blocked until Happ is toggled. Accept, or find another safe signal | USER |
 | Pending | Build the GUI watcher (read-only first) | — |
 | Pending | Build the gateway controller, dry-run first | — |
 | Pending | Any firewall, routing, or sysctl change on the Pi | — (needs approval per step) |
@@ -366,6 +389,7 @@ git log --oneline -5
 4. Keep labels (VERIFIED, OBSERVED, INFERRED, UNKNOWN) on every new finding, with its date and source.
 5. Keep the user's language. The user works in English and Russian. Documentation is in English, with a Russian README.
 6. Commit and push only what the user asked for. Never commit secrets (section 4, rule 12).
+7. Run the unit tests before every commit (`python3 -m unittest discover -s tests`). Add a test for every new parser or state rule.
 
 ---
 
