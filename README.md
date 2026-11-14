@@ -2,6 +2,8 @@
 
 # Shared VPN for the home network (Raspberry Pi)
 
+Default device: the Raspberry Pi (`pi5home`). Commands on this page run on the Pi unless they say otherwise.
+
 ## What this project is
 
 This project is an attempt to let several devices in your home (an Android phone and a Linux computer called `dell`) use the Happ VPN through a single device, a Raspberry Pi 5 called `pi5home`. Traffic from those devices would leave the house through the VPN, without each device needing its own setup.

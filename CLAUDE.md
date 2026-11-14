@@ -4,6 +4,8 @@ Instructions for AI assistants working in this repository. Read this first, then
 
 ## What this project is
 
+**Default host: `pi`** (`pi5home`, `192.168.0.118`, user `bliss`). Any command, script, or check that does not name a host runs on the Pi. Commands for Dell (`dell`, `192.168.0.105`) or Android must say so explicitly.
+
 A one-click install for a Raspberry Pi 5 (`pi5home`, `192.168.0.118`) that shares its Happ VPN with the home network. Clients are an Android phone (`192.168.0.185`) and the Ubuntu computer `dell` (`192.168.0.105`). The user turns Happ ON and OFF in the Happ GUI as usual, and the gateway follows that choice. Clients are pointed at the Pi once, in their Wi-Fi settings. Nothing else is manual.
 
 ## Current state

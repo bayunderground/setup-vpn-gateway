@@ -11,6 +11,8 @@ Evidence labels:
 
 Dates are 2026-11-14 unless stated. Times are +03:00.
 
+**Default host: `pi`.** Unless a command or section names another host, it runs on the Pi (`pi5home`, `192.168.0.118`, user `bliss`). Dell (`dell`, `192.168.0.105`) and Android (`192.168.0.185`) are always named explicitly.
+
 ---
 
 ## 1. What the user wants
@@ -277,6 +279,8 @@ Each step needs the user's approval before the next one starts.
 ---
 
 ## 8. Commands
+
+Default host is the Pi (`pi5home`) unless a heading says otherwise.
 
 Run on the Pi as `bliss` unless noted.
 
