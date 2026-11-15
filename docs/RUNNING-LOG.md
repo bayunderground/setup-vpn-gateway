@@ -272,3 +272,38 @@ Plan for Dell through the Pi (NOT yet applied, needs approval):
 - USER: update CLAUDE.md, remove DEVELOMPENT_PLAN.md.
 - `DEVELOMPENT_PLAN.md` removed (git rm). References updated in `README.md` (table row removed), `docs/LLM-HANDOVER.md` (file table row removed), and `docs/handoff-2026-11-14.md` (pointer replaced). Historical logs keep their original wording.
 - `CLAUDE.md`: current state, client routing decision, Dell address (.103), Pi interface (eth0), controller files, sudo password rule added to rule 10.
+
+## 2026-11-15 19:40-19:50 MSK: fail-closed fix, installer, legacy cleanup (executed)
+
+USER approval: "do all of it, I will enter a password." Sudo password supplied by the user through a desktop askpass dialog only; never written to disk, argv, the repo, or the journal.
+
+### Repo (commit `a32270c`)
+
+- `gateway/forward_apply.py`: a failed `nft -c`/`nft -f` now falls back to `BLOCK`. Before this, a failed switch `ORDINARY -> VPN_EXIT` kept the `ORDINARY` ruleset (NAT out `eth0`), which would send client traffic out of the normal connection while Happ is on. The controller also checks every tick that `ip vpn_gateway` exists and re-applies it if it was flushed. `--once` exits 1 on failure.
+- `tests/test_forward_apply.py`: fallback, kept-last-ruleset failure, and table-flush recovery. Suite: 59 tests pass.
+- `scripts/new-host-setup.sh`: installs `forward_policy.py`, `forward_apply.py`, `vpn-gateway-forward.service`, and `/etc/sysctl.d/90-vpn-gateway.conf`. `--uninstall` now removes the forward unit, the project table, and the sysctl file.
+- `systemd/`: added the forward unit and the sysctl file.
+- Docs: README, README_RU, CLAUDE.md, LLM-HANDOVER updated; `DEVELOMPENT_PLAN.md` removed.
+
+### Pi (backup `/var/backups/vpn-gateway/2026-11-15-pi/`)
+
+- Installed `/etc/sysctl.d/90-vpn-gateway.conf` (`net.ipv4.ip_forward=1`). This replaces the only previous source, the legacy `/etc/sysctl.d/90-android-vpn-share.conf`.
+- Installed updated `happ_watch.py`, `gateway_mode.py`, `forward_policy.py`, `forward_apply.py`, and `vpn-gateway-forward.service`; restarted the controller.
+- Removed the legacy `android-vpn-share.timer` and `.service` (they failed every 30 s because `iptables` is not installed) and the legacy sysctl file. The script was moved to the backup directory.
+- VERIFIED after: `ip_forward=1`; `vpn-gateway-forward.service` active; `vpn-gateway-watch.service` active; `android-vpn-share` not-found; `gateway_mode.py` = `VPN_EXIT`; table `ip vpn_gateway` unchanged (forward accept/drop + NAT for `.103` and `.185` out `happ-xray`); no failed units.
+- Rollback: `/var/backups/vpn-gateway/2026-11-15-pi/ROLLBACK.txt`.
+
+### Dell (backup `/var/backups/vpn-gateway/2026-11-15-dell/`)
+
+- Stopped and removed the legacy `android-vpn-share.timer` and `.service`. The script was moved to the backup directory.
+- Removed the legacy Android kill-switch: `ANDROID_VPN_OUT` chain, its `FORWARD` jump, the NAT and established-return rules, the IPv6 MAC DROP, and `ip rule 8000 from 192.168.0.185 lookup 2022`.
+- Kept `ip_forward=1` and the legacy sysctl file on Dell for now: if the phone still uses Dell as gateway, Dell must forward to the Pi.
+- VERIFIED after: `ip_forward=1`; no rule 8000; no `ANDROID_VPN_OUT`; legacy units not-found; HTTPS `example.com` = 200; Dell exit IP `152.233.71.89` equals the Pi exit IP.
+- Rollback: `/var/backups/vpn-gateway/2026-11-15-dell/ROLLBACK.txt`.
+
+### Open after this session
+
+- Android: the phone is online (ARP reply) but its gateway is still unconfirmed. With the Dell kill-switch gone, Dell -> Pi forwarding works if the phone uses Dell; if it uses the router, set its Wi-Fi gateway to `192.168.0.118`. No conntrack entries for `.185` were present at check time, so this is not proven.
+- Happ OFF path for Dell (expect `ORDINARY`, direct via the router): not tested.
+- IPv6: no global IPv6 on Pi or Dell at check time; not enforced.
+- Push: local commits only; nothing pushed to GitHub.

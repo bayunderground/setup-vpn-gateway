@@ -143,10 +143,12 @@ sudo sysctl -q -p "$SYSCTL_DST"
 info "IPv4 forwarding: $(cat /proc/sys/net/ipv4/ip_forward) ($SYSCTL_DST)"
 sudo systemctl daemon-reload
 sudo systemctl enable --now "$WATCH_UNIT"
+sudo systemctl restart "$WATCH_UNIT"
 sleep 3
 info "enabled $WATCH_UNIT: active=$(systemctl is-active "$WATCH_UNIT")"
 info "state: $(cat /run/vpn-gateway/state.json 2>/dev/null || echo 'not published yet')"
 sudo systemctl enable --now "$FORWARD_UNIT"
+sudo systemctl restart "$FORWARD_UNIT"
 sleep 2
 info "enabled $FORWARD_UNIT: active=$(systemctl is-active "$FORWARD_UNIT")"
 

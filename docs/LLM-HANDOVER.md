@@ -11,7 +11,7 @@ Evidence labels:
 
 Dates are 2026-11-14 unless stated. Times are +03:00.
 
-**Default host: `pi`.** Unless a command or section names another host, it runs on the Pi (`pi5home`, `192.168.0.118`, user `bliss`). Dell (`dell`, `192.168.0.105`) and Android (`192.168.0.185`) are always named explicitly.
+**Default host: `pi`.** Unless a command or section names another host, it runs on the Pi (`pi5home`, `192.168.0.118`, user `bliss`). Dell (`dell`, currently `192.168.0.103`; older docs say `.105`) and Android (`192.168.0.185`) are always named explicitly.
 
 ---
 
@@ -20,7 +20,7 @@ Dates are 2026-11-14 unless stated. Times are +03:00.
 - A **one-click install** on a Raspberry Pi 5, which shares its Happ VPN with other devices on the home network.
 - **Day-to-day use:** the user turns Happ ON or OFF in the Happ GUI, as usual. The gateway follows that choice automatically. There is no second step.
 - The only manual steps on client devices are a **one-time Wi-Fi setting**: set the Pi as the default gateway.
-- Clients in scope: Android (`192.168.0.185`) and the Ubuntu computer `dell` (`192.168.0.105`).
+- Clients in scope: Android (`192.168.0.185`) and the Ubuntu computer `dell` (currently `192.168.0.103`; older docs say `.105`).
 - **IPv4 only.** IPv6 is not forwarded and not NAT'd.
 
 Behaviour the user expects:
@@ -42,8 +42,8 @@ The user accepted this design on 2026-11-14 with the trace-based approach descri
 
 | Host | Address | Role | Notes |
 |---|---|---|---|
-| Pi `pi5home` (**default host**) | `192.168.0.118` on `wlan0` | Gateway host. Watcher installed and running | Raspberry Pi 5, Debian 13 (trixie), aarch64, kernel 6.18.29+rpt-rpi-2712. User `bliss`, SSH key login (`ssh bliss@192.168.0.118`). Passwordless `sudo` only for the read-only rule and the watcher's own unit |
-| Dell `dell` | `192.168.0.105` on `wlp8s0` | Client, and today also a VPN exit for Android | Ubuntu 24.04, kernel 6.17, x86_64. Runs its own Happ 2.17.1 |
+| Pi `pi5home` (**default host**) | `192.168.0.118` on `eth0` | Gateway host. Watcher, forwarding controller, and baseline installed and running | Raspberry Pi 5, Debian 13 (trixie), aarch64, kernel 6.18.29+rpt-rpi-2712. User `bliss`, SSH key login (`ssh bliss@192.168.0.118`). `wlan0` is down. Passwordless `sudo` only for the read-only rule |
+| Dell `dell` | `192.168.0.103` on `wlp8s0` | Client. Gateway is the Pi | Ubuntu 24.04, kernel 6.17, x86_64. Older docs say `.105`; the live address is `.103`. Runs its own Happ 2.17.1 |
 | Android | `192.168.0.185` (static, USER) | Client | MAC `f0:35:75:23:34:62`. Gateway, prefix and DNS not confirmed |
 | Router | `192.168.0.1` | LAN default gateway | |
 
@@ -66,7 +66,9 @@ Do not read, print, or commit `Happ.conf` values beyond key names. It can contai
 
 ### 2.3 Pi network state
 
-**Latest check, 2026-11-14 03:14 (VERIFIED):** Happ is ON. `happ-xray` is UP at `172.19.0.1/30`. Default routes: `default dev happ-xray metric 1` and `default via 192.168.0.1 dev wlan0 metric 600`. The watcher reports `intent=ENABLED process=up`. `ip_forward=0`. `nftables.service` disabled. `happd` PID 990, active. The watcher service is active, with its `strace` child attached to PID 990.
+**Latest check, 2026-11-15 19:45 (VERIFIED):** Happ is ON. `happ-xray` is UP at `172.19.0.1/30`. Default routes: `default dev happ-xray metric 1` and `default via 192.168.0.1 dev eth0 metric 100`. The watcher reports `intent=ENABLED process=up`; `gateway_mode.py` reports `VPN_EXIT`. `ip_forward=1` (owned by `/etc/sysctl.d/90-vpn-gateway.conf`). `nftables.service` disabled. The table `ip vpn_gateway` forwards and NATs `192.168.0.103` and `192.168.0.185` out `happ-xray`. Both `vpn-gateway-watch.service` and `vpn-gateway-forward.service` are active. The legacy `android-vpn-share` timer/units are removed.
+
+**Earlier check, 2026-11-14 03:14 (VERIFIED):** Happ is ON. `happ-xray` is UP at `172.19.0.1/30`. Default routes: `default dev happ-xray metric 1` and `default via 192.168.0.1 dev wlan0 metric 600`. The watcher reports `intent=ENABLED process=up`. `ip_forward=0`. `nftables.service` disabled. `happd` PID 990, active. The watcher service is active, with its `strace` child attached to PID 990.
 
 **Earlier check, 2026-11-14 02:20 (VERIFIED, Happ OFF):**
 
@@ -77,20 +79,21 @@ Do not read, print, or commit `Happ.conf` values beyond key names. It can contai
 - `nft list ruleset`: empty.
 - `nftables.service`: disabled. **Never enable it.** Its stock config starts with `flush ruleset`.
 
-### 2.4 Dell network state (VERIFIED earlier in session)
+### 2.4 Dell network state (VERIFIED 2026-11-15 19:47)
 
 - `ip_forward=1`.
-- Android traffic is currently routed through Dell's Happ: rule `8000: from 192.168.0.185 lookup 2022`, table 2022 `default via 172.18.0.2 dev tun0`.
-- Other rules (`9000` to `9010`, `9003` for `lo`) are part of the same old experiment. Owner: the old Ubuntu gateway design, not yet proven.
-- Dell's conntrack is not loaded (`/proc/net/nf_conntrack` absent).
-- Do not remove any of these rules without the user's approval.
+- Default route: `default via 192.168.0.118 dev wlp8s0 metric 600` (Dell uses the Pi as gateway).
+- The legacy rule `8000: from 192.168.0.185 lookup 2022`, the `ANDROID_VPN_OUT` iptables chain, its NAT/return rules, the IPv6 MAC DROP, and the `android-vpn-share` timer/units were removed on 2026-11-15 with user approval. Backups: `/var/backups/vpn-gateway/2026-11-15-dell/`.
+- Table 2022 and `tun0` do not exist. Dell's own Happ 2.17.1 is active but not part of the default path.
+- Dell exit IP equals the Pi exit IP (`152.233.71.89` at 19:46), so Dell exits through the Pi's Happ.
+- `postgresql@16-main` still fails because a non-systemd PostgreSQL holds port 5432. Out of scope.
 
 ### 2.5 Android
 
 - USER: static IP `192.168.0.185`. Gateway reported once as `192.168.0.185` (probably a misread) and once as "DHCP, as on Dell". **Not confirmed.**
 - VERIFIED 2026-11-14 (Pi, default host): Pi ARP table has `192.168.0.185 lladdr f0:35:75:23:34:62 STALE` on `wlan0`.
 - OBSERVED 2026-11-14 ~03:20 (Pi, `scripts/probe-android-gateway.py`, 120 s passive on `wlan0`): **no ARP and no DHCP messages from the phone.** The phone's ARP cache for its gateway was still valid, so it asked for nothing.
-- INFERRED (Dell capture, 2026-11-14 01:32): the phone's internet packets reached `dell`'s Wi-Fi NIC (`a4:34:d9:24:57:2f`). That only happens if the phone's link-layer next hop is Dell. So the gateway is most likely `192.168.0.105` (`dell`). **Not confirmed.** One check on Dell (sudo password, 30 s capture of the destination MAC of `src 192.168.0.185` frames) confirms or refutes it.
+- INFERRED (Dell capture, 2026-11-14 01:32): the phone's internet packets reached `dell`'s Wi-Fi NIC (`a4:34:d9:24:57:2f`). That only happens if the phone's link-layer next hop is Dell. So the gateway is most likely Dell (documented as `192.168.0.105` then; the live Dell address is `192.168.0.103`). **Not confirmed.** One check on Dell (sudo password, 30 s capture of the destination MAC of `src 192.168.0.185` frames) confirms or refutes it.
 - UNKNOWN: DNS 1 and 2, prefix (expected `/24`), exit IP from a browser.
 - The Pi cannot force the phone to send gateway ARP or DHCP. Only the phone's own activity or a re-association produces it.
 
@@ -159,7 +162,7 @@ Consequence: the gateway cannot learn intent from the socket by being a passive 
 These come from the user's own specification and the earlier plan. Keep them unless the user changes them.
 
 1. **Do not break the Pi.** Keep the Pi's own default routing, `happd`, and Happ's routes and rules intact. The Pi itself is not routed through the gateway logic.
-2. **No WAN leak.** When Happ is ON, client internet traffic must never fall back to `wlan0`. If the tunnel is missing, drop it.
+2. **No WAN leak.** When Happ is ON, client internet traffic must never fall back to `eth0`. If the tunnel is missing, drop it.
 3. **Unknown means blocked.** Missing, unreadable, or contradictory state is never treated as OFF.
 4. **IPv4 only.** Do not add IPv6 forwarding or NAT. Drop forwarded client IPv6. Same-LAN router advertisements can give clients a direct IPv6 path. This must be stated, not hidden.
 5. **Native nftables only, owned table.** Create a project-owned table. **Never flush the global ruleset. Never enable `nftables.service`.**
@@ -210,15 +213,15 @@ These come from the user's own specification and the earlier plan. Keep them unl
 - Runs as root. It reads control messages and never sends any.
 - If it is not running, all client traffic is blocked. This is the fail-closed choice.
 
-### 5.3 Gateway controller (to be designed, not built)
+### 5.3 Gateway controller (built 2026-11-14; hardened 2026-11-15)
 
-- Owned nftables table, for example `inet vpn_gateway`. Forward chain: LAN to `happ-xray` allowed. Established return allowed. Masquerade on `happ-xray`. Drop all other client WAN egress. Drop forwarded IPv6.
-- In DISABLED: allow client WAN via `wlan0` with masquerade on `wlan0`. This is the only ordinary path, and it applies only when DISABLED is positively observed.
-- Policy routing per client IPv4 address, using a free table chosen after inspection. Not table 2022.
-- Forwarding via a project sysctl file, only after approval.
-- Transitions: drop rules first, then change the path. Never open a gap where clients use the normal path while the state is unknown.
-- Lock with `flock`. Idempotent.
-- Rollback: a `--rollback` command that removes only the owned table and the owned sysctl file, and restores the previous forwarding value.
+- Owned nftables table `ip vpn_gateway` (IPv4 only; not `inet`). Forward chain: clients out `happ-xray` allowed in VPN_EXIT, out `eth0` allowed in ORDINARY, all other client forwarded traffic dropped. Postrouting masquerade on the chosen interface.
+- In DISABLED: allow client WAN via `eth0` with masquerade on `eth0`. This is the only ordinary path, and it applies only when DISABLED is positively observed.
+- No policy routing is needed: clients point their Wi-Fi gateway at the Pi. Dell's old rule 8000 was removed on 2026-11-15.
+- Forwarding via the project sysctl file `/etc/sysctl.d/90-vpn-gateway.conf` (`ip_forward=1`), installed by the one-click installer.
+- Transitions: build the new ruleset, check it with `nft -c -f`, then apply it atomically with `nft -f`. A failed check or apply falls back to BLOCK. The controller also verifies every 5 s that the table exists and re-applies it if flushed.
+- Idempotent: the ruleset text is cached and re-applied only on a mode change, a failed check, or a missing table.
+- Rollback: `new-host-setup.sh --uninstall`, or the per-host `ROLLBACK.txt` in `/var/backups/vpn-gateway/`.
 
 ### 5.4 Build order (user-approved)
 
@@ -239,17 +242,17 @@ Each step needs the user's approval before the next one starts.
 | `setup-vpn-gateway-alpha.sh` (read-only probe) | Exists. Read-only. Reports `TUNNEL_ABSENT`, not "disabled" |
 | `scripts/baseline-readonly.sh` (read-only report) | Exists. Used by the boot service |
 | `scripts/happd-observe.py` (passive observer) | Exists. Shows that observers get no lifecycle events. Not a watcher |
-| `scripts/new-host-setup.sh` (one-click install) | Exists. Partly run on the Pi |
+| `scripts/new-host-setup.sh` (one-click install) | Exists. Installs the watcher, forwarding controller, project sysctl, and baseline; `--uninstall` removes them and the project table |
 | Boot service `vpn-gateway-watch.service` | Installed and enabled on the Pi (2026-11-14, 03:02). Active. Runs `happ_watch.py` as root |
 | Boot service `vpn-gateway-boot-baseline.service` | Installed and enabled on the Pi (2026-11-14, 03:02). Last result: success |
 | Read-only sudo rule | Active on the Pi. The file name in the docs was not found in `/etc/sudoers.d`. Source not traced |
-| Happ GUI watcher (`gateway/happ_watch.py`) | **Built, unit tested (38 tests), replayed against the three real Pi captures. Installed and running on the Pi since 2026-11-14 03:02** |
+| Happ GUI watcher (`gateway/happ_watch.py`) | **Built, unit tested (59 tests total), replayed against the three real Pi captures. Installed and running on the Pi since 2026-11-14 03:02** |
 | Gateway decision (`gateway/gateway_mode.py`) | Built, read-only. Prints ORDINARY, VPN_EXIT, or BLOCK. Applies nothing |
-| Gateway controller (nftables, routing, sysctl) | **Not built** |
+| Gateway controller (nftables, sysctl) | **Built and installed on the Pi (`vpn-gateway-forward.service`, 2026-11-14 19:48). Writes only `ip vpn_gateway`; fails closed to BLOCK; re-applies a flushed table** |
 | Marker file design | Superseded by the trace-based approach (section 5.2). Kept as fallback in `docs/happ-intent-marker-design-2026-11-14.md` |
-| Unit tests (`tests/`) | 38 tests, run with `python3 -m unittest discover -s tests` |
-| Android gateway setup | **Not done.** Values not confirmed |
-| Dell Happ and rules | **Not changed.** Decision pending |
+| Unit tests (`tests/`) | 59 tests, run with `python3 -m unittest discover -s tests` |
+| Android gateway setup | **Not done.** Gateway unconfirmed |
+| Dell Happ and rules | Legacy Android kill-switch removed 2026-11-15 with approval. Dell's own Happ is untouched |
 
 ---
 
@@ -355,11 +358,15 @@ git log --oneline -5
 5. **OFF monitor at 02:01:49.** Xray pid changed from 54915 to 54954 with no capture. Cause not determined.
 6. **Brave apt repository** returns 403 and its signature changed. It is not part of this project. The user may remove it: `/etc/apt/sources.list.d/brave-browser-release.sources`.
 7. **Boot baseline log grows.** `/var/log/vpn-gateway/boot-baseline.log` is appended at every boot and never rotated.
-8. **Plan conflict.** `DEVELOMPENT_PLAN.md` Phase 8 says not to install the alpha probe as a service. The boot service runs `baseline-readonly.sh`, not the alpha probe. The user asked for it. Keep the distinction clear.
+8. **Plan conflict.** The removed `DEVELOMPENT_PLAN.md` Phase 8 said not to install the alpha probe as a service. The boot service runs `baseline-readonly.sh`, not the alpha probe. The user asked for it. Keep the distinction clear.
 9. **Old trace files on the Pi** contain xray configuration: `/tmp/opencode/happd-toggle.strace`, `happd-off2.strace`, `happd-crash2.strace`. Not in git. The user said they do not need them deleted. Mention again before any backup.
 10. **Read-only sudo rule file.** Resolved 2026-11-14: `/etc/sudoers.d/vpn-gateway-readonly` now exists (root, mode 0440), installed by `new-host-setup.sh`.
 11. **`openvpn.service` is enabled** on the Pi but runs `/bin/true`. Not part of this project. Harmless.
 12. **Dell has its own Happ 2.17.1** and carries Android's traffic today. Its rules must not be touched without a decision.
+15. **Fixed 2026-11-15:** the controller could keep the previous `ORDINARY` ruleset after a failed switch to `VPN_EXIT` (a VPN leak). It now falls back to `BLOCK`. It also re-applies if the table is flushed. Tests cover both.
+16. **Fixed 2026-11-15:** the installer did not install the forwarding unit, and `--uninstall` left it enabled. Both are handled now; `ip_forward=1` is owned by `/etc/sysctl.d/90-vpn-gateway.conf`.
+17. **Cleaned 2026-11-15:** the legacy `android-vpn-share` timer/units (failing every 30 s on the Pi, enforcing a DROP on Dell), rule 8000, and `ANDROID_VPN_OUT` were removed with approval. Backups: `/var/backups/vpn-gateway/`.
+18. **Still open 2026-11-15:** Android's gateway; the Happ OFF path; IPv6; whether to push the local commits.
 
 ---
 
@@ -389,6 +396,18 @@ git log --oneline -5
 | Pending | Dell Happ: keep, move to Pi, or replace | USER |
 | Pending | Dell rules 8000 and 9000 to 9010, table 2022, `tun0` | USER (after Android is settled) |
 | 2026-11-14 | Commit the `CLAUDE.md` deletion (done in `5b611e5`, together with this document) | USER |
+| 2026-11-15 | "Do all of it": fix the controller/installer/docs, install the project sysctl, remove the legacy Android timer/units/rule 8000/`ANDROID_VPN_OUT`, clean stale sudoers | USER |
+| 2026-11-15 | Keep Dell's legacy `ip_forward=1` sysctl for now (Android may still route via Dell) | INFERRED from the USER approval |
+
+---
+
+## 10a. 2026-11-15 update (read this first)
+
+- USER approval: "do all of it".
+- Repo: `forward_apply.py` fails closed to `BLOCK` and re-applies a flushed table; `new-host-setup.sh` installs/removes the forwarding unit and the project sysctl; `systemd/` added; 59 tests; docs updated (README, README_RU, CLAUDE.md, RUNNING-LOG). `DEVELOMPENT_PLAN.md` removed.
+- Pi: installed `/etc/sysctl.d/90-vpn-gateway.conf` and `vpn-gateway-forward.service`; removed the legacy `android-vpn-share` timer/units and `/etc/sysctl.d/90-android-vpn-share.conf`; table `ip vpn_gateway` unchanged; services active; mode `VPN_EXIT`. Backups: `/var/backups/vpn-gateway/2026-11-15-pi/`.
+- Dell: removed the legacy `android-vpn-share` timer/units, rule 8000, and the `ANDROID_VPN_OUT` iptables chain plus its NAT/return/IPv6 rules; kept `ip_forward=1`; HTTPS still 200; exit IP matches the Pi. Backups: `/var/backups/vpn-gateway/2026-11-15-dell/`.
+- Open: Android's gateway; Happ OFF test; IPv6; push.
 
 ---
 

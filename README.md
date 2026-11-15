@@ -6,17 +6,17 @@ Default device: the Raspberry Pi (`pi5home`). Commands on this page run on the P
 
 ## What this project is
 
-This project is an attempt to let several devices in your home (an Android phone and a Linux computer called `dell`) use the Happ VPN through a single device, a Raspberry Pi 5 called `pi5home`. Traffic from those devices would leave the house through the VPN, without each device needing its own setup.
+This project lets several devices in your home (an Android phone and a Linux computer called `dell`) use the Happ VPN through a single device, a Raspberry Pi 5 called `pi5home`. Traffic from those devices leaves the house through the VPN, without each device needing its own setup.
 
-**Right now, nothing new is set up.** The Pi does not share its VPN with anyone yet, and the project is still in the investigation stage. One thing is already happening: the phone's traffic goes through the VPN on `dell` (an older setup), and that is unchanged.
+**Current state (2026-11-15):** the Pi shares its Happ VPN with `dell`, and `dell` is set to use the Pi as its gateway. When Happ is ON, `dell`'s internet exits through the Pi's VPN; when Happ is OFF, it goes through the router. The phone is online, but its gateway is still unconfirmed; see below.
 
 ## Devices and addresses
 
 | Device | Name | IP address | Note |
 |---|---|---|---|
-| Raspberry Pi 5 (**default device**) | `pi5home` | `192.168.0.118` | Future shared VPN gateway, Wi-Fi (`wlan0`) |
-| Computer | `dell` | `192.168.0.105` | Still runs its own Happ (version 2.17.1) |
-| Phone | Android | `192.168.0.185` | Client, static IP |
+| Raspberry Pi 5 (**default device**) | `pi5home` | `192.168.0.118` | Shared VPN gateway, wired LAN (`eth0`); `wlan0` is down |
+| Computer | `dell` | `192.168.0.103` | Gateway is the Pi. Older docs say `.105`; the live address is `.103` |
+| Phone | Android | `192.168.0.185` | Client, static IP. Gateway unconfirmed |
 | Router | — | `192.168.0.1` | Default gateway for the whole network |
 
 Open the Pi from another computer: `ssh bliss@192.168.0.118`
@@ -26,24 +26,27 @@ Open the Pi from another computer: `ssh bliss@192.168.0.118`
 | Part | Status |
 |---|---|
 | Pi can be checked safely (read-only) | Done |
-| See whether Happ is switched ON or OFF (from the Happ GUI) | Done and installed on the Pi (2026-11-14, 03:02). The watcher runs at every boot and follows your ON/OFF choice |
-| Share the Pi's VPN with the phone and computer | Not started. The watcher is ready; the traffic rules are not written yet |
-| Blocking clients when the VPN drops | Not started. Planned together with the traffic rules |
+| See whether Happ is switched ON or OFF (from the Happ GUI) | Done. The watcher runs at every boot and follows your ON/OFF choice |
+| Share the Pi's VPN with `dell` | Done (2026-11-14). `dell` exits through the Pi's Happ |
+| Share the Pi's VPN with the phone | Pending. The phone's gateway must be confirmed or set to the Pi |
+| Blocking clients when the VPN drops or the state is unclear | Done. Unknown or stale state means blocked |
+| Fail closed if a traffic rule cannot be applied | Done. The controller falls back to blocked, not to the normal path |
 
-## The main problem being solved
+## How the ON/OFF choice is followed
 
-The Pi can see whether the VPN is running, but it cannot see whether **you** want it on. Those can differ, for example when the VPN drops by itself. Guessing wrong could send your traffic out of your normal internet connection without the VPN.
+The Pi can see the VPN process, but not whether **you** want it on. The watcher reads the ON/OFF control messages from the Happ GUI and publishes that intent to `/run/vpn-gateway/state.json`. The controller follows it:
 
-So the plan is: you tell the Pi your choice with a simple setting (a small file that says "on" or "off"). If that setting is missing or unclear, the shared connection is blocked rather than guessed. The design is in `docs/happ-intent-marker-design-2026-11-14.md`.
+- Happ ON and the tunnel is up: client traffic goes through the VPN.
+- Happ OFF (positively observed): client traffic goes through the router.
+- Missing, stale, unknown, or contradictory: clients are blocked.
+
+If a new ruleset cannot be applied, the controller falls back to **blocked** rather than leaving the normal path open. It never flushes the global nftables ruleset and never enables `nftables.service`.
 
 ## What you need to do
 
-Please answer these when you can. None of them change anything on their own.
-
-1. **Android gateway.** The Pi (default device) checks this with `scripts/probe-android-gateway.py`. In 2 minutes it saw no ARP or DHCP from the phone, so the gateway is not yet confirmed. Traffic that reached `dell` suggests `dell` (`192.168.0.105`). One step confirms it: enter your sudo password on `dell` once, and the check takes 30 seconds. Nothing else is needed from you.
+1. **Android gateway.** The phone is online, but the Pi's 2-minute probe saw no ARP or DHCP from it. The old Dell kill-switch has been removed, so if the phone's gateway is `dell`, its traffic now reaches the Pi. If its gateway is the router, set the phone's Wi-Fi gateway to `192.168.0.118`. Then check the phone's public IP: it should equal the Pi's exit IP (`152.233.71.89` at the time of writing).
 2. **The computer's VPN (Happ on `dell`).** Do you still use Happ on that computer? If not, should it be removed or left as it is? Nothing will be changed on it until you answer.
-
-3. **Your ON/OFF choice (once the design is approved).** You will set the choice with a command, alongside the Happ app toggle. The exact steps will be written here when they exist.
+3. **Happ OFF test.** When convenient, turn Happ OFF in the GUI and confirm `dell` still has internet through the router (the controller should report `ORDINARY`).
 
 ## Setting up a new device (Raspberry Pi)
 
@@ -53,7 +56,7 @@ One command. It asks for your sudo password once:
 git clone https://github.com/bayunderground/setup-vpn-gateway.git ~/setup-vpn-gateway && bash ~/setup-vpn-gateway/scripts/new-host-setup.sh
 ```
 
-The script installs packages (including `strace`), keeps nftables off, checks Happ, updates the project, installs a sudo rule for checks without a password, starts the Happ watcher at every boot, and sets up a read-only check that also runs at every boot. The watcher only reads Happ's messages and writes its state to `/run/vpn-gateway/state.json`. It does not change routing or the firewall. The report goes to `/var/log/vpn-gateway/boot-baseline.log`. To remove what it added: `bash ~/setup-vpn-gateway/scripts/new-host-setup.sh --uninstall`.
+The script installs packages (including `strace`), keeps nftables off, checks Happ, updates the project, installs a sudo rule for checks without a password, starts the Happ watcher at every boot, installs the forwarding controller at every boot (project table `ip vpn_gateway` only), and enables IPv4 forwarding with `/etc/sysctl.d/90-vpn-gateway.conf`. The controller follows the Happ GUI: ON -> VPN_EXIT, OFF -> ORDINARY, unknown -> BLOCK. The read-only report goes to `/var/log/vpn-gateway/boot-baseline.log`. To remove everything it added: `bash ~/setup-vpn-gateway/scripts/new-host-setup.sh --uninstall` (it removes the units, the project table, and the sysctl file; IPv4 forwarding stays on until the next boot).
 
 Happ is installed separately, with its own installer. The script tells you if Happ is missing.
 
@@ -69,7 +72,8 @@ Happ is installed separately, with its own installer. The script tells you if Ha
 | Need | File |
 |---|---|
 | Full record of everything found so far | `docs/PROJECT-DOCUMENTARY-2026-11-14.md` |
-| How the ON/OFF setting will work | `docs/happ-intent-marker-design-2026-11-14.md` |
+| How the ON/OFF choice is followed | `docs/LLM-HANDOVER.md` (section 5.2) |
+| Earlier marker design (fallback) | `docs/happ-intent-marker-design-2026-11-14.md` |
 | Step-by-step commands for a new Pi | `docs/pi-reinstall.md` and `docs/new-host-commands.md` |
 | Commands for you to run | `docs/user-commands-2026-11-14.md` |
 | Project rules for developers and AI helpers | `CLAUDE.md` |
