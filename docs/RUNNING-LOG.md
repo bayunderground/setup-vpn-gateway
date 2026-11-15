@@ -298,7 +298,7 @@ USER approval: "do all of it, I will enter a password." Sudo password supplied b
 - Stopped and removed the legacy `android-vpn-share.timer` and `.service`. The script was moved to the backup directory.
 - Removed the legacy Android kill-switch: `ANDROID_VPN_OUT` chain, its `FORWARD` jump, the NAT and established-return rules, the IPv6 MAC DROP, and `ip rule 8000 from 192.168.0.185 lookup 2022`.
 - Kept `ip_forward=1` and the legacy sysctl file on Dell for now: if the phone still uses Dell as gateway, Dell must forward to the Pi.
-- VERIFIED after: `ip_forward=1`; no rule 8000; no `ANDROID_VPN_OUT`; legacy units not-found; HTTPS `example.com` = 200; Dell exit IP `152.233.71.89` equals the Pi exit IP.
+- VERIFIED after: `ip_forward=1`; no rule 8000; no `ANDROID_VPN_OUT`; legacy units not-found; HTTPS `example.com` = 200; Dell exit IP `152.233.108.41` equals the Pi exit IP at 19:53 (the earlier `152.233.71.89` had rotated). One check taken immediately after the controller restart returned `000`; the retest passed three times.
 - Rollback: `/var/backups/vpn-gateway/2026-11-15-dell/ROLLBACK.txt`.
 
 ### Open after this session

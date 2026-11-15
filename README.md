@@ -44,7 +44,7 @@ If a new ruleset cannot be applied, the controller falls back to **blocked** rat
 
 ## What you need to do
 
-1. **Android gateway.** The phone is online, but the Pi's 2-minute probe saw no ARP or DHCP from it. The old Dell kill-switch has been removed, so if the phone's gateway is `dell`, its traffic now reaches the Pi. If its gateway is the router, set the phone's Wi-Fi gateway to `192.168.0.118`. Then check the phone's public IP: it should equal the Pi's exit IP (`152.233.71.89` at the time of writing).
+1. **Android gateway.** The phone is online, but the Pi's 2-minute probe saw no ARP or DHCP from it. The old Dell kill-switch has been removed, so if the phone's gateway is `dell`, its traffic now reaches the Pi. If its gateway is the router, set the phone's Wi-Fi gateway to `192.168.0.118`. Then compare the phone's public IP with the Pi's: run `curl -s https://api.ipify.org` on the Pi and open the same URL in the phone's browser. The addresses must match.
 2. **The computer's VPN (Happ on `dell`).** Do you still use Happ on that computer? If not, should it be removed or left as it is? Nothing will be changed on it until you answer.
 3. **Happ OFF test.** When convenient, turn Happ OFF in the GUI and confirm `dell` still has internet through the router (the controller should report `ORDINARY`).
 

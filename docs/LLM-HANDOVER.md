@@ -85,7 +85,7 @@ Do not read, print, or commit `Happ.conf` values beyond key names. It can contai
 - Default route: `default via 192.168.0.118 dev wlp8s0 metric 600` (Dell uses the Pi as gateway).
 - The legacy rule `8000: from 192.168.0.185 lookup 2022`, the `ANDROID_VPN_OUT` iptables chain, its NAT/return rules, the IPv6 MAC DROP, and the `android-vpn-share` timer/units were removed on 2026-11-15 with user approval. Backups: `/var/backups/vpn-gateway/2026-11-15-dell/`.
 - Table 2022 and `tun0` do not exist. Dell's own Happ 2.17.1 is active but not part of the default path.
-- Dell exit IP equals the Pi exit IP (`152.233.71.89` at 19:46), so Dell exits through the Pi's Happ.
+- Dell exit IP equals the Pi exit IP (`152.233.108.41` at 19:53). The earlier value `152.233.71.89` changed when the VPN exit rotated, so compare the two hosts instead of hardcoding an address.
 - `postgresql@16-main` still fails because a non-systemd PostgreSQL holds port 5432. Out of scope.
 
 ### 2.5 Android
