@@ -303,7 +303,8 @@ USER approval: "do all of it, I will enter a password." Sudo password supplied b
 
 ### Open after this session
 
-- Android: the phone is online (ARP reply) but its gateway is still unconfirmed. With the Dell kill-switch gone, Dell -> Pi forwarding works if the phone uses Dell; if it uses the router, set its Wi-Fi gateway to `192.168.0.118`. No conntrack entries for `.185` were present at check time, so this is not proven.
+- Android: **confirmed 2026-11-15 (user + verification).** The phone's Wi-Fi gateway is `192.168.0.118` (the Pi) and the phone has no VPN app. Its public address is `152.233.43.93`, a VPN-pool address, while the home connection's own address is `46.8.62.23` (`curl -s --interface eth0 https://api.ipify.org` on the Pi). Path: phone -> Pi -> `happ-xray`. Dell's NetworkManager profile was re-checked and needed no change: method `manual`, `192.168.0.103/24`, gateway `192.168.0.118`, DNS `8.8.8.8,8.8.4.4,1.1.1.1`.
+- Exit addresses rotate (`152.233.71.89`, `152.233.108.41`, `152.233.43.93` were all seen within minutes), so comparing two devices' public addresses does not prove a path. Compare against the home address `46.8.62.23` instead.
 - Happ OFF path for Dell (expect `ORDINARY`, direct via the router): not tested.
 - IPv6: no global IPv6 on Pi or Dell at check time; not enforced.
 - Push: local commits only; nothing pushed to GitHub.

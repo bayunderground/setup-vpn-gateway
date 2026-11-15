@@ -8,7 +8,7 @@ Default device: the Raspberry Pi (`pi5home`). Commands on this page run on the P
 
 This project lets several devices in your home (an Android phone and a Linux computer called `dell`) use the Happ VPN through a single device, a Raspberry Pi 5 called `pi5home`. Traffic from those devices leaves the house through the VPN, without each device needing its own setup.
 
-**Current state (2026-11-15):** the Pi shares its Happ VPN with `dell`, and `dell` is set to use the Pi as its gateway. When Happ is ON, `dell`'s internet exits through the Pi's VPN; when Happ is OFF, it goes through the router. The phone is online, but its gateway is still unconfirmed; see below.
+**Current state (2026-11-15):** the Pi shares its Happ VPN with `dell` and the phone. Both are set to use the Pi (`192.168.0.118`) as their gateway. When Happ is ON, their internet exits through the Pi's VPN; when Happ is OFF, it goes through the router. This is confirmed working: the phone has no VPN app of its own, and its public address is a VPN address (`152.233.43.93`), not the home connection's own address (`46.8.62.23`).
 
 ## Devices and addresses
 
@@ -16,7 +16,7 @@ This project lets several devices in your home (an Android phone and a Linux com
 |---|---|---|---|
 | Raspberry Pi 5 (**default device**) | `pi5home` | `192.168.0.118` | Shared VPN gateway, wired LAN (`eth0`); `wlan0` is down |
 | Computer | `dell` | `192.168.0.103` | Gateway is the Pi. Older docs say `.105`; the live address is `.103` |
-| Phone | Android | `192.168.0.185` | Client, static IP. Gateway unconfirmed |
+| Phone | Android | `192.168.0.185` | Client, static IP. Gateway is the Pi; no VPN app on the phone |
 | Router | — | `192.168.0.1` | Default gateway for the whole network |
 
 Open the Pi from another computer: `ssh bliss@192.168.0.118`
@@ -28,7 +28,7 @@ Open the Pi from another computer: `ssh bliss@192.168.0.118`
 | Pi can be checked safely (read-only) | Done |
 | See whether Happ is switched ON or OFF (from the Happ GUI) | Done. The watcher runs at every boot and follows your ON/OFF choice |
 | Share the Pi's VPN with `dell` | Done (2026-11-14). `dell` exits through the Pi's Happ |
-| Share the Pi's VPN with the phone | Pending. The phone's gateway must be confirmed or set to the Pi |
+| Share the Pi's VPN with the phone | Done (2026-11-15). The phone's gateway is the Pi; its public address is a VPN address |
 | Blocking clients when the VPN drops or the state is unclear | Done. Unknown or stale state means blocked |
 | Fail closed if a traffic rule cannot be applied | Done. The controller falls back to blocked, not to the normal path |
 
@@ -44,9 +44,17 @@ If a new ruleset cannot be applied, the controller falls back to **blocked** rat
 
 ## What you need to do
 
-1. **Android gateway.** The phone is online, but the Pi's 2-minute probe saw no ARP or DHCP from it. The old Dell kill-switch has been removed, so if the phone's gateway is `dell`, its traffic now reaches the Pi. If its gateway is the router, set the phone's Wi-Fi gateway to `192.168.0.118`. Then compare the phone's public IP with the Pi's: run `curl -s https://api.ipify.org` on the Pi and open the same URL in the phone's browser. The addresses must match.
+1. **Android gateway — done (2026-11-15).** The phone's gateway is `192.168.0.118` and it has no VPN app, so its traffic goes through the Pi. Confirmed: the phone's public address is a VPN address (`152.233.43.93`), while the home connection's own address is `46.8.62.23`.
 2. **The computer's VPN (Happ on `dell`).** Do you still use Happ on that computer? If not, should it be removed or left as it is? Nothing will be changed on it until you answer.
 3. **Happ OFF test.** When convenient, turn Happ OFF in the GUI and confirm `dell` still has internet through the router (the controller should report `ORDINARY`).
+
+## How to tell whether a device uses the VPN
+
+Do not compare devices by public address alone: the VPN provider hands out different exit addresses (`152.233.71.89`, `152.233.108.41`, `152.233.43.93`), so they rotate. Compare against the home connection instead:
+
+- `curl -s --interface eth0 https://api.ipify.org` on the Pi gives the home connection's own address (`46.8.62.23` when checked).
+- With the VPN on, any client's public address starts with `152.233.`.
+- If a client shows the home address instead, it is bypassing the Pi's VPN.
 
 ## Setting up a new device (Raspberry Pi)
 

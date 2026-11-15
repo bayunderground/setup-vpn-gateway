@@ -85,17 +85,18 @@ Do not read, print, or commit `Happ.conf` values beyond key names. It can contai
 - Default route: `default via 192.168.0.118 dev wlp8s0 metric 600` (Dell uses the Pi as gateway).
 - The legacy rule `8000: from 192.168.0.185 lookup 2022`, the `ANDROID_VPN_OUT` iptables chain, its NAT/return rules, the IPv6 MAC DROP, and the `android-vpn-share` timer/units were removed on 2026-11-15 with user approval. Backups: `/var/backups/vpn-gateway/2026-11-15-dell/`.
 - Table 2022 and `tun0` do not exist. Dell's own Happ 2.17.1 is active but not part of the default path.
-- Dell exit IP equals the Pi exit IP (`152.233.108.41` at 19:53). The earlier value `152.233.71.89` changed when the VPN exit rotated, so compare the two hosts instead of hardcoding an address.
-- `postgresql@16-main` still fails because a non-systemd PostgreSQL holds port 5432. Out of scope.
+- Dell's live default route is `default via 192.168.0.118 dev wlp8s0 proto static metric 600` (NetworkManager `TP-Link_42SN`, method `manual`, `ipv4.addresses 192.168.0.103/24`, `ipv4.gateway 192.168.0.118`, DNS `8.8.8.8,8.8.4.4,1.1.1.1`).
+- Dell's exit address is in the Pi's VPN pool, so Dell exits through the Pi's Happ.
+- The VPN provider rotates its exit addresses (`152.233.71.89`, `152.233.108.41`, `152.233.43.93`). The home connection's own address is `46.8.62.23` (`curl -s --interface eth0 https://api.ipify.org` on the Pi). Compare against that, never two devices' public addresses.
+- `postgresql@16-main` still fails because a non-systemd PostgreSQL holds port 5432, and `apport-autoreport.service` fails. Both are out of scope.
 
-### 2.5 Android
+### 2.5 Android (CONFIRMED 2026-11-15)
 
-- USER: static IP `192.168.0.185`. Gateway reported once as `192.168.0.185` (probably a misread) and once as "DHCP, as on Dell". **Not confirmed.**
-- VERIFIED 2026-11-14 (Pi, default host): Pi ARP table has `192.168.0.185 lladdr f0:35:75:23:34:62 STALE` on `wlan0`.
-- OBSERVED 2026-11-14 ~03:20 (Pi, `scripts/probe-android-gateway.py`, 120 s passive on `wlan0`): **no ARP and no DHCP messages from the phone.** The phone's ARP cache for its gateway was still valid, so it asked for nothing.
-- INFERRED (Dell capture, 2026-11-14 01:32): the phone's internet packets reached `dell`'s Wi-Fi NIC (`a4:34:d9:24:57:2f`). That only happens if the phone's link-layer next hop is Dell. So the gateway is most likely Dell (documented as `192.168.0.105` then; the live Dell address is `192.168.0.103`). **Not confirmed.** One check on Dell (sudo password, 30 s capture of the destination MAC of `src 192.168.0.185` frames) confirms or refutes it.
-- UNKNOWN: DNS 1 and 2, prefix (expected `/24`), exit IP from a browser.
-- The Pi cannot force the phone to send gateway ARP or DHCP. Only the phone's own activity or a re-association produces it.
+- USER 2026-11-15: the phone's Wi-Fi gateway is `192.168.0.118` (the Pi), and **the phone has no Happ or any other VPN app**.
+- VERIFIED 2026-11-15: the phone answered ping from the Pi in 1.5 ms and is `REACHABLE` in the Pi's neighbour table (`f0:35:75:23:34:62` on `eth0`).
+- VERIFIED 2026-11-15 (USER, phone browser): the phone's public address is `152.233.43.93`, a VPN-pool address, while the home connection's own address is `46.8.62.23`. So the phone's traffic goes through the Pi's Happ.
+- With no VPN app on the phone, the whole path is: phone -> Pi (`192.168.0.118`) -> `happ-xray`.
+- Earlier notes in this section (gateway "possibly Dell", no ARP during the 2-minute probe) are history and no longer describe the live setup.
 
 ---
 
@@ -251,7 +252,7 @@ Each step needs the user's approval before the next one starts.
 | Gateway controller (nftables, sysctl) | **Built and installed on the Pi (`vpn-gateway-forward.service`, 2026-11-14 19:48). Writes only `ip vpn_gateway`; fails closed to BLOCK; re-applies a flushed table** |
 | Marker file design | Superseded by the trace-based approach (section 5.2). Kept as fallback in `docs/happ-intent-marker-design-2026-11-14.md` |
 | Unit tests (`tests/`) | 59 tests, run with `python3 -m unittest discover -s tests` |
-| Android gateway setup | **Not done.** Gateway unconfirmed |
+| Android gateway setup | **Done 2026-11-15.** Gateway is the Pi; no VPN app on the phone; public address is in the VPN pool |
 | Dell Happ and rules | Legacy Android kill-switch removed 2026-11-15 with approval. Dell's own Happ is untouched |
 
 ---
@@ -392,8 +393,8 @@ git log --oneline -5
 | Pending | Build the GUI watcher (read-only first) | — |
 | Pending | Build the gateway controller, dry-run first | — |
 | Pending | Any firewall, routing, or sysctl change on the Pi | — (needs approval per step) |
-| Pending | Android gateway, DNS, prefix, exit IP | USER |
 | Pending | Dell Happ: keep, move to Pi, or replace | USER |
+| 2026-11-15 | Android gateway and exit confirmed: gateway is the Pi, no VPN app on the phone, public address in the VPN pool | USER (phone) + VERIFIED |
 | Pending | Dell rules 8000 and 9000 to 9010, table 2022, `tun0` | USER (after Android is settled) |
 | 2026-11-14 | Commit the `CLAUDE.md` deletion (done in `5b611e5`, together with this document) | USER |
 | 2026-11-15 | "Do all of it": fix the controller/installer/docs, install the project sysctl, remove the legacy Android timer/units/rule 8000/`ANDROID_VPN_OUT`, clean stale sudoers | USER |
@@ -406,8 +407,10 @@ git log --oneline -5
 - USER approval: "do all of it".
 - Repo: `forward_apply.py` fails closed to `BLOCK` and re-applies a flushed table; `new-host-setup.sh` installs/removes the forwarding unit and the project sysctl; `systemd/` added; 59 tests; docs updated (README, README_RU, CLAUDE.md, RUNNING-LOG). `DEVELOMPENT_PLAN.md` removed.
 - Pi: installed `/etc/sysctl.d/90-vpn-gateway.conf` and `vpn-gateway-forward.service`; removed the legacy `android-vpn-share` timer/units and `/etc/sysctl.d/90-android-vpn-share.conf`; table `ip vpn_gateway` unchanged; services active; mode `VPN_EXIT`. Backups: `/var/backups/vpn-gateway/2026-11-15-pi/`.
-- Dell: removed the legacy `android-vpn-share` timer/units, rule 8000, and the `ANDROID_VPN_OUT` iptables chain plus its NAT/return/IPv6 rules; kept `ip_forward=1`; HTTPS still 200; exit IP matches the Pi. Backups: `/var/backups/vpn-gateway/2026-11-15-dell/`.
-- Open: Android's gateway; Happ OFF test; IPv6; push.
+- Dell: removed the legacy `android-vpn-share` timer/units, rule 8000, and the `ANDROID_VPN_OUT` iptables chain plus its NAT/return/IPv6 rules; kept `ip_forward=1`; HTTPS still 200; exit address in the Pi's VPN pool. Backups: `/var/backups/vpn-gateway/2026-11-15-dell/`.
+- Android: **confirmed.** Gateway is the Pi (`192.168.0.118`), no VPN app on the phone, public address `152.233.43.93` (VPN pool) versus the home connection's `46.8.62.23`. Path: phone -> Pi -> `happ-xray`.
+- Exit addresses rotate. Verify a path against the home address, never against another device's public address.
+- Open: Happ OFF test; IPv6; push.
 
 ---
 

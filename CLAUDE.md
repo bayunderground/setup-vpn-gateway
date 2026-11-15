@@ -24,7 +24,8 @@ Client routing, decided by the user (2026-11-14):
 - `gateway/forward_apply.py` (`vpn-gateway-forward.service`, root, Pi): re-reads the mode, verifies the table, and reapplies the ruleset only when it changes. Each ruleset is checked with `nft -c` before it is applied. A failed apply falls back to `BLOCK`; the previous `ORDINARY` ruleset is never kept after a failed switch to `VPN_EXIT`.
 - **Pi:** table `ip vpn_gateway` applied and both services active (VPN_EXIT, 2026-11-15 19:44). `ip_forward=1` is owned by `/etc/sysctl.d/90-vpn-gateway.conf`.
 - **Dell:** NetworkManager `TP-Link_42SN` gateway is `192.168.0.118` (applied 2026-11-14 ~21:00). Dell's exit IP matches the Pi's Happ exit. The legacy `android-vpn-share` timer/units, rule 8000, and `ANDROID_VPN_OUT` chain were removed on 2026-11-15 (backups in `/var/backups/vpn-gateway/`). Dell's own Happ, `tun0`, and table 2022 are untouched.
-- **Android:** the phone is online but its gateway is still unconfirmed. With the Dell kill-switch gone, traffic through Dell now reaches the Pi; if the phone uses the router, its Wi-Fi gateway must be set to `192.168.0.118`.
+- **Android:** confirmed 2026-11-15. The phone's Wi-Fi gateway is `192.168.0.118`, it has no VPN app of its own, and its public address is a VPN address (`152.233.43.93`) rather than the home connection's own address (`46.8.62.23`), so its traffic goes through the Pi's Happ.
+- **Exit addresses rotate:** the VPN provider hands out different exit addresses (`152.233.71.89`, `152.233.108.41`, `152.233.43.93`). Never prove a path by comparing two devices' public addresses; compare against `curl -s --interface eth0 https://api.ipify.org` on the Pi (`46.8.62.23`), which bypasses the tunnel.
 - **Not done or not tested:** the Happ OFF path for Dell (direct through the router); IPv6 handling (see rule 4).
 - **Out of scope, not touched:** `postgresql@16-main` fails on Dell because another postgres holds port 5432.
 
