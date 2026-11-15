@@ -53,12 +53,12 @@ Hostname on the Pi: `pi5home` (static). Some prompts show `raspberrypi`, which i
 
 | Item | Pi | Dell |
 |---|---|---|
-| Daemon | `happd` 4.7.2, `/opt/happ/bin/happd`, PID 990 | `happd` 2.17.1, PID 1978 |
-| Service | `happd.service`, enabled, active, `Restart=always`, runs as root | active |
+| Daemon | `happd` 4.7.2, `/opt/happ/bin/happd`, PID 993 | `happd` 2.17.1, PID 1914 |
+| Service | `happd.service`, enabled, active, `Restart=always`, runs as root | enabled, active, but the VPN is **off at the user's request (2026-11-15)** and must not be turned on again. No tunnel |
 | Control socket | `/tmp/happd.sock` (root-owned, mode `srw-rw-rw-`) | not probed |
 | State DB | `/var/lib/happd/state.db` (root only). Only table `pending_push`. **No intent flag** | not checked |
 | Log | `/var/log/happd.log` (world-readable). Records xray starts only | not checked |
-| Tunnel interface | `happ-xray`, `172.19.0.1/30`, present only when ON | `tun0`, `172.18.0.1/30` |
+| Tunnel interface | `happ-xray`, `172.19.0.1/30`, present only when ON; **absent while Happ is OFF (verified 2026-11-15 20:18)** | `tun0` absent (Happ off) |
 | Tunnel process | `/opt/happ/bin/core/xray` (xray-core 26.10.29) | not checked |
 | User config | `~/.config/Happ.conf`. `mode=Dark` is the UI theme, **not** VPN state | not checked |
 
@@ -367,7 +367,10 @@ git log --oneline -5
 15. **Fixed 2026-11-15:** the controller could keep the previous `ORDINARY` ruleset after a failed switch to `VPN_EXIT` (a VPN leak). It now falls back to `BLOCK`. It also re-applies if the table is flushed. Tests cover both.
 16. **Fixed 2026-11-15:** the installer did not install the forwarding unit, and `--uninstall` left it enabled. Both are handled now; `ip_forward=1` is owned by `/etc/sysctl.d/90-vpn-gateway.conf`.
 17. **Cleaned 2026-11-15:** the legacy `android-vpn-share` timer/units (failing every 30 s on the Pi, enforcing a DROP on Dell), rule 8000, and `ANDROID_VPN_OUT` were removed with approval. Backups: `/var/backups/vpn-gateway/`.
-18. **Still open 2026-11-15:** Android's gateway; the Happ OFF path; IPv6; whether to push the local commits.
+18. **Still open 2026-11-15:** IPv6; whether to push the local commits; the reboot-with-Happ-OFF gap.
+19. **Tested 2026-11-15 20:18, Happ OFF:** `ORDINARY`, Dell HTTPS 200, Dell exit = home ISP `46.8.62.23`, `happ-xray` gone. The OFF path works.
+20. **Dell's Happ is off at the USER's request and must not be enabled again.** `happd` still runs without a tunnel; Dell's routing does not use it.
+21. **Known gap (2026-11-15):** with Happ OFF, a Pi reboot or a watcher restart publishes `intent=UNKNOWN`, so the controller applies `BLOCK` and clients lose internet until Happ is toggled ON and OFF. The state file is on `/run` (tmpfs). Fix: persist the user's last explicit choice and use it only when the tunnel is down. Needs approval.
 
 ---
 
@@ -410,7 +413,10 @@ git log --oneline -5
 - Dell: removed the legacy `android-vpn-share` timer/units, rule 8000, and the `ANDROID_VPN_OUT` iptables chain plus its NAT/return/IPv6 rules; kept `ip_forward=1`; HTTPS still 200; exit address in the Pi's VPN pool. Backups: `/var/backups/vpn-gateway/2026-11-15-dell/`.
 - Android: **confirmed.** Gateway is the Pi (`192.168.0.118`), no VPN app on the phone, public address `152.233.43.93` (VPN pool) versus the home connection's `46.8.62.23`. Path: phone -> Pi -> `happ-xray`.
 - Exit addresses rotate. Verify a path against the home address, never against another device's public address.
-- Open: Happ OFF test; IPv6; push.
+- Open: IPv6; push; the reboot-with-Happ-OFF gap.
+- Tested 2026-11-15 20:18 with Happ OFF: `ORDINARY`, Dell HTTPS 200, Dell exit `46.8.62.23` (home ISP), no `happ-xray`.
+- Dell's Happ is off at the USER's request and must not be enabled again.
+- Known gap: after a Pi reboot (or a watcher restart) with Happ OFF, the intent is `UNKNOWN` -> `BLOCK` until Happ is toggled. The state file is on tmpfs. Fix requires persisting the last explicit choice (needs approval).
 
 ---
 

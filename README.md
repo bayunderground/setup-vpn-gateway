@@ -46,7 +46,9 @@ If a new ruleset cannot be applied, the controller falls back to **blocked** rat
 
 1. **Android gateway — done (2026-11-15).** The phone's gateway is `192.168.0.118` and it has no VPN app, so its traffic goes through the Pi. Confirmed: the phone's public address is a VPN address (`152.233.43.93`), while the home connection's own address is `46.8.62.23`.
 2. **The computer's VPN (Happ on `dell`).** Do you still use Happ on that computer? If not, should it be removed or left as it is? Nothing will be changed on it until you answer.
-3. **Happ OFF test.** When convenient, turn Happ OFF in the GUI and confirm `dell` still has internet through the router (the controller should report `ORDINARY`).
+3. **Happ OFF test — done (2026-11-15).** With Happ OFF the controller reports `ORDINARY` and `dell` still has internet through the router, at the home address `46.8.62.23`.
+
+4. **After a Pi reboot with Happ OFF, clients lose internet until Happ is toggled ON and OFF once.** The Pi cannot see your OFF choice after a restart, so it blocks rather than guessing. This is a real gap when you keep Happ OFF; it can be fixed by remembering your last choice across reboots.
 
 ## How to tell whether a device uses the VPN
 

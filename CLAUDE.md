@@ -26,7 +26,10 @@ Client routing, decided by the user (2026-11-14):
 - **Dell:** NetworkManager `TP-Link_42SN` gateway is `192.168.0.118` (applied 2026-11-14 ~21:00). Dell's exit IP matches the Pi's Happ exit. The legacy `android-vpn-share` timer/units, rule 8000, and `ANDROID_VPN_OUT` chain were removed on 2026-11-15 (backups in `/var/backups/vpn-gateway/`). Dell's own Happ, `tun0`, and table 2022 are untouched.
 - **Android:** confirmed 2026-11-15. The phone's Wi-Fi gateway is `192.168.0.118`, it has no VPN app of its own, and its public address is a VPN address (`152.233.43.93`) rather than the home connection's own address (`46.8.62.23`), so its traffic goes through the Pi's Happ.
 - **Exit addresses rotate:** the VPN provider hands out different exit addresses (`152.233.71.89`, `152.233.108.41`, `152.233.43.93`). Never prove a path by comparing two devices' public addresses; compare against `curl -s --interface eth0 https://api.ipify.org` on the Pi (`46.8.62.23`), which bypasses the tunnel.
-- **Not done or not tested:** the Happ OFF path for Dell (direct through the router); IPv6 handling (see rule 4).
+- **Happ OFF (tested 2026-11-15 20:18):** the watcher reports `intent=DISABLED process=down reason="stopped by user"`, the tunnel is gone, and the controller applies `ORDINARY` (client WAN via `eth0` + masquerade on `eth0`). Dell's HTTPS is 200 and its exit address is the home ISP's `46.8.62.23`.
+- **Dell's Happ is off at the user's request and must not be turned on again.** The daemon (`happd` 2.17.1) still runs but holds no tunnel; Dell's routing does not involve it.
+- **Known gap, not fixed yet:** after a Pi reboot, or after a restart of `vpn-gateway-watch.service`, with Happ OFF the watcher can only publish `intent=UNKNOWN` (its state file is on tmpfs and the user's OFF choice is not observed again until the GUI is used). The controller then applies `BLOCK`, so Dell and the phone lose internet until Happ is toggled ON and OFF once. Simulated 2026-11-15: `{"mode": "BLOCK", "reason": "intent UNKNOWN is not a safe state"}`. The safe fix is to persist the user's last explicit choice and use it only when the tunnel is down.
+- **Not done or not tested:** IPv6 handling (see rule 4).
 - **Out of scope, not touched:** `postgresql@16-main` fails on Dell because another postgres holds port 5432.
 
 ## Rules

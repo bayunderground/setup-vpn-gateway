@@ -305,6 +305,8 @@ USER approval: "do all of it, I will enter a password." Sudo password supplied b
 
 - Android: **confirmed 2026-11-15 (user + verification).** The phone's Wi-Fi gateway is `192.168.0.118` (the Pi) and the phone has no VPN app. Its public address is `152.233.43.93`, a VPN-pool address, while the home connection's own address is `46.8.62.23` (`curl -s --interface eth0 https://api.ipify.org` on the Pi). Path: phone -> Pi -> `happ-xray`. Dell's NetworkManager profile was re-checked and needed no change: method `manual`, `192.168.0.103/24`, gateway `192.168.0.118`, DNS `8.8.8.8,8.8.4.4,1.1.1.1`.
 - Exit addresses rotate (`152.233.71.89`, `152.233.108.41`, `152.233.43.93` were all seen within minutes), so comparing two devices' public addresses does not prove a path. Compare against the home address `46.8.62.23` instead.
-- Happ OFF path for Dell (expect `ORDINARY`, direct via the router): not tested.
+- Happ OFF path for Dell: **tested 2026-11-15 20:18, works.** `ORDINARY`; Dell HTTPS 200; Dell exit = home ISP `46.8.62.23`; `happ-xray` gone; the Pi's default route is via `eth0`.
+- Dell's Happ is off at the user's request (2026-11-15) and must not be enabled again. `happd` 2.17.1 still runs but has no tunnel and is not in Dell's routing.
+- Known gap: a Pi reboot, or a restart of `vpn-gateway-watch.service`, with Happ OFF gives `intent=UNKNOWN` -> `BLOCK`, so clients lose internet until Happ is toggled ON and OFF. Simulated 2026-11-15: `{"mode": "BLOCK", "reason": "intent UNKNOWN is not a safe state"}`. The state file lives on `/run` (tmpfs), so the OFF choice does not survive a reboot.
 - IPv6: no global IPv6 on Pi or Dell at check time; not enforced.
 - Push: local commits only; nothing pushed to GitHub.
