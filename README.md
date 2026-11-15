@@ -72,7 +72,6 @@ Happ is installed separately, with its own installer. The script tells you if Ha
 | How the ON/OFF setting will work | `docs/happ-intent-marker-design-2026-11-14.md` |
 | Step-by-step commands for a new Pi | `docs/pi-reinstall.md` and `docs/new-host-commands.md` |
 | Commands for you to run | `docs/user-commands-2026-11-14.md` |
-| Development plan | `DEVELOMPENT_PLAN.md` |
 | Project rules for developers and AI helpers | `CLAUDE.md` |
 | Detailed log of past sessions | `docs/RUNNING-LOG.md` |
 

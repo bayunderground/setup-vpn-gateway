@@ -266,7 +266,6 @@ Each step needs the user's approval before the next one starts.
 | Path | Purpose |
 |---|---|
 | `README.md`, `README_RU.md` | Plain-language overview for new users (English and Russian). Install command, IP table, user questions, safety rules |
-| `DEVELOMPENT_PLAN.md` | Original phased development plan (filename typo kept) |
 | `RASPBERRY_PI_GATEWAY_LLM_HANDOVER.md` | Older design handover. Not reviewed against the current findings in this session. This document supersedes it |
 | `setup-vpn-gateway-alpha.sh` | Read-only Happ probe |
 | `scripts/new-host-setup.sh` | One-click install (`--uninstall` removes what it added) |

@@ -13,10 +13,13 @@
 #   - clone or update the project repo
 #   - install a read-only sudo rule for diagnostics
 #   - install and start the Happ GUI watcher at boot (read-only, publishes state)
+#   - install and start the client forwarding controller at boot
+#     (project-owned table `ip vpn_gateway` only; fail closed)
+#   - enable IPv4 forwarding with a project-owned sysctl file
 #   - install a boot-time read-only baseline report
 #
-# It does NOT: change routing, firewall rules, IP forwarding, or Happ settings,
-# and it does NOT start the gateway controller (its rules are not approved yet).
+# It does NOT flush the global nftables ruleset, enable nftables.service,
+# change Happ settings, or touch another project's tables.
 set -Eeuo pipefail
 
 REPO_URL="https://github.com/bayunderground/setup-vpn-gateway.git"
@@ -25,7 +28,9 @@ LIB_DIR=/usr/local/lib/vpn-gateway
 LOG_DIR=/var/log/vpn-gateway
 SUDOERS=/etc/sudoers.d/vpn-gateway-readonly
 WATCH_UNIT=vpn-gateway-watch.service
+FORWARD_UNIT=vpn-gateway-forward.service
 BASELINE_UNIT=vpn-gateway-boot-baseline.service
+SYSCTL_DST=/etc/sysctl.d/90-vpn-gateway.conf
 PACKAGES=(git nftables iproute2 python3 network-manager openssh-server curl strace)
 
 say()  { printf '\n== %s\n' "$*"; }
@@ -34,14 +39,16 @@ die()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 uninstall() {
     say "Uninstall (only files this script created)"
-    for unit in "$WATCH_UNIT" "$BASELINE_UNIT"; do
+    for unit in "$WATCH_UNIT" "$FORWARD_UNIT" "$BASELINE_UNIT"; do
         sudo systemctl disable --now "$unit" 2>/dev/null || true
         sudo rm -f "/etc/systemd/system/$unit"
     done
     sudo systemctl daemon-reload
+    sudo nft delete table ip vpn_gateway 2>/dev/null || true
     sudo rm -rf "$LIB_DIR"
-    sudo rm -f "$SUDOERS"
-    info "removed watcher and baseline units, $LIB_DIR, and $SUDOERS"
+    sudo rm -f "$SUDOERS" "$SYSCTL_DST"
+    info "removed watcher, forward, and baseline units; table ip vpn_gateway; $LIB_DIR; $SUDOERS; $SYSCTL_DST"
+    info "IPv4 forwarding stays on until the next boot"
     info "kept logs in $LOG_DIR and the repo in $REPO_DIR"
 }
 
@@ -106,12 +113,14 @@ sudo visudo -cf "$RULE_FILE" >/dev/null || die "generated sudo rule failed visud
 sudo install -m 0440 -o root -g root "$RULE_FILE" "$SUDOERS"
 info "installed $SUDOERS"
 
-say "7. Happ GUI watcher (runs at boot, read-only)"
+say "7. Happ GUI watcher and client forwarding controller (run at boot)"
 sudo install -d -m 0755 -o root -g root "$LIB_DIR"
-for file in happ_watch.py gateway_mode.py; do
+for file in happ_watch.py gateway_mode.py forward_policy.py forward_apply.py; do
     sudo install -m 0644 -o root -g root "$REPO_DIR/gateway/$file" "$LIB_DIR/$file"
 done
-info "installed $LIB_DIR/happ_watch.py and gateway_mode.py"
+sudo install -m 0644 -o root -g root "$REPO_DIR/systemd/$FORWARD_UNIT" \
+    "/etc/systemd/system/$FORWARD_UNIT"
+info "installed $LIB_DIR (watcher, mode, policy, controller) and $FORWARD_UNIT"
 sudo tee "/etc/systemd/system/$WATCH_UNIT" >/dev/null <<EOF
 [Unit]
 Description=VPN gateway: Happ GUI intent watcher (read-only, fail closed)
@@ -129,11 +138,17 @@ RuntimeDirectoryMode=0755
 [Install]
 WantedBy=multi-user.target
 EOF
+sudo install -m 0644 -o root -g root "$REPO_DIR/systemd/90-vpn-gateway.conf" "$SYSCTL_DST"
+sudo sysctl -q -p "$SYSCTL_DST"
+info "IPv4 forwarding: $(cat /proc/sys/net/ipv4/ip_forward) ($SYSCTL_DST)"
 sudo systemctl daemon-reload
 sudo systemctl enable --now "$WATCH_UNIT"
 sleep 3
 info "enabled $WATCH_UNIT: active=$(systemctl is-active "$WATCH_UNIT")"
 info "state: $(cat /run/vpn-gateway/state.json 2>/dev/null || echo 'not published yet')"
+sudo systemctl enable --now "$FORWARD_UNIT"
+sleep 2
+info "enabled $FORWARD_UNIT: active=$(systemctl is-active "$FORWARD_UNIT")"
 
 say "8. Boot-time read-only baseline report"
 sudo install -d -m 0755 "$LOG_DIR"
@@ -162,4 +177,5 @@ say "Done"
 if [[ $MISSING_HAPP -eq 1 ]]; then
     info "NEXT: install Happ, then run this script again. Until then the watcher reports UNKNOWN and clients stay blocked."
 fi
-info "The gateway controller is NOT applying any firewall or routing rules yet. Its decision can be checked with: python3 $LIB_DIR/gateway_mode.py"
+info "Client forwarding follows Happ in the project table ip vpn_gateway: ON -> VPN_EXIT, OFF -> ORDINARY, unknown -> BLOCK."
+info "Check the decision with: python3 $LIB_DIR/gateway_mode.py"

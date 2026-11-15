@@ -266,3 +266,9 @@ Plan for Dell through the Pi (NOT yet applied, needs approval):
 - NOT yet tested: Happ OFF behaviour (Dell should go direct via router). Needs the user to turn Happ OFF in the GUI, or permission to stop it.
 - IPv6: not tested or handled (see limitation above).
 - Android (step 4): still on the phone. Not changed.
+
+## Docs: CLAUDE.md updated, DEVELOMPENT_PLAN.md removed (2026-11-14 ~21:20 MSK)
+
+- USER: update CLAUDE.md, remove DEVELOMPENT_PLAN.md.
+- `DEVELOMPENT_PLAN.md` removed (git rm). References updated in `README.md` (table row removed), `docs/LLM-HANDOVER.md` (file table row removed), and `docs/handoff-2026-11-14.md` (pointer replaced). Historical logs keep their original wording.
+- `CLAUDE.md`: current state, client routing decision, Dell address (.103), Pi interface (eth0), controller files, sudo password rule added to rule 10.

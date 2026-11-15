@@ -1,0 +1,13 @@
+[Unit]
+Description=VPN gateway: client forwarding follows Happ state (project table ip vpn_gateway only)
+After=vpn-gateway-watch.service
+Wants=vpn-gateway-watch.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/lib/vpn-gateway/forward_apply.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

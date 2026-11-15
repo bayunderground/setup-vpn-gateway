@@ -8,14 +8,20 @@ mode changes. Each ruleset is checked with `nft -c -f` before it is applied.
 Rules (CLAUDE.md, user decision 2026-11-14):
   Happ ON  (VPN_EXIT): clients leave through Happ.
   Happ OFF (ORDINARY): clients leave through the router path.
-  Unknown or stale:    BLOCK. A failed check never replaces the working ruleset.
+  Unknown or stale:    BLOCK.
+
+Fail closed: if the wanted ruleset cannot be applied, the controller tries to
+apply BLOCK instead. Keeping the previous ORDINARY ruleset after a failed
+switch to VPN_EXIT would send client traffic out of the normal connection while
+Happ is on, so that is never done. If even BLOCK cannot be applied, the last
+working ruleset is kept, the error is reported, and the loop keeps running.
 
 Only the project table `ip vpn_gateway` is written. The global ruleset is never
 flushed, and nftables.service is never enabled.
 
 Usage:
   forward_apply.py            run as the systemd service (root)
-  forward_apply.py --once     run one tick and print the mode
+  forward_apply.py --once     run one tick; print the mode; exit 1 on failure
 """
 import os
 import subprocess
@@ -28,6 +34,8 @@ import gateway_mode as gm
 
 TICK_SECONDS = 5.0
 WORK_DIR = "/run/vpn-gateway"
+MODES = ("VPN_EXIT", "ORDINARY", "BLOCK")
+SAFE_MODE = "BLOCK"
 
 
 def _run(argv):
@@ -43,20 +51,33 @@ class Controller:
         self.work_dir = work_dir
         self.applied = None
         self.mode = None
+        self.last_error = None
 
     def tick(self, mode):
         """Make the ruleset match `mode`. Returns the mode now in effect."""
-        if mode not in ("VPN_EXIT", "ORDINARY", "BLOCK"):
-            mode = "BLOCK"
-        text = fp.build_ruleset(mode, self.clients)
-        if text == self.applied:
+        if mode not in MODES:
+            mode = SAFE_MODE
+        self._verify()
+        if self.applied == fp.build_ruleset(mode, self.clients):
             return self.mode
+        if self._apply(mode):
+            return mode
+        # Fail closed: never leave ORDINARY in place when VPN_EXIT was wanted.
+        if mode != SAFE_MODE and self._apply(SAFE_MODE):
+            return SAFE_MODE
+        return self.mode
+
+    def _apply(self, mode):
+        """Check and apply one ruleset. Returns True only when it is live."""
+        text = fp.build_ruleset(mode, self.clients)
         path = self._write(text)
         try:
             if self.runner(["nft", "-c", "-f", path]) != 0:
-                return self.mode
+                self.last_error = f"{mode} ruleset failed nft -c; not applied"
+                return False
             if self.runner(["nft", "-f", path]) != 0:
-                return self.mode
+                self.last_error = f"{mode} ruleset failed nft -f; not applied"
+                return False
         finally:
             try:
                 os.unlink(path)
@@ -64,7 +85,16 @@ class Controller:
                 pass
         self.applied = text
         self.mode = mode
-        return mode
+        self.last_error = None
+        return True
+
+    def _verify(self):
+        """Forget the cached ruleset if the table was removed or flushed."""
+        if self.applied is not None and not self._table_present():
+            self.applied = None
+
+    def _table_present(self):
+        return self.runner(["nft", "list", "table", "ip", fp.TABLE]) == 0
 
     def _write(self, text):
         os.makedirs(self.work_dir, exist_ok=True)
@@ -85,19 +115,30 @@ def decide_now(state_path=gm.STATE_PATH):
 def main(argv):
     if "--once" in argv:
         c = Controller()
-        print(c.tick(decide_now()))
+        mode = c.tick(decide_now())
+        print(mode)
+        if c.last_error:
+            print(f"forward_apply: {c.last_error}", file=sys.stderr, flush=True)
+            return 1
         return 0
     c = Controller()
-    last_printed = None
+    last_status = None
     while True:
         try:
             mode = c.tick(decide_now())
         except Exception as exc:  # fail closed: try to block, then keep running
             print(f"forward_apply: error {exc!r}; trying BLOCK", file=sys.stderr, flush=True)
-            mode = c.tick("BLOCK")
-        if mode != last_printed:
-            print(f"forward_apply: mode={mode}", flush=True)
-            last_printed = mode
+            try:
+                mode = c.tick(SAFE_MODE)
+            except Exception as block_exc:
+                print(f"forward_apply: BLOCK also failed: {block_exc!r}",
+                      file=sys.stderr, flush=True)
+                mode = c.mode
+        status = (mode, c.last_error)
+        if status != last_status:
+            detail = f" ({c.last_error})" if c.last_error else ""
+            print(f"forward_apply: mode={mode}{detail}", flush=True)
+            last_status = status
         time.sleep(TICK_SECONDS)
 
 
