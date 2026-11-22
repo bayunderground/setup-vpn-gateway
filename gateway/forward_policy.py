@@ -20,7 +20,7 @@ import sys
 TABLE = "vpn_gateway"
 TUNNEL = "happ-xray"
 ROUTER_IF = "eth0"
-DEFAULT_CLIENTS = ("192.168.0.103", "192.168.0.185")  # dell, android
+DEFAULT_CLIENTS = ("192.168.0.105", "192.168.0.185")  # dell, android
 
 
 def validate_clients(clients):

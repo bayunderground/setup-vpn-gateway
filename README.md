@@ -15,7 +15,7 @@ This project lets several devices in your home (an Android phone and a Linux com
 | Device | Name | IP address | Note |
 |---|---|---|---|
 | Raspberry Pi 5 (**default device**) | `pi5home` | `192.168.0.118` | Shared VPN gateway, wired LAN (`eth0`); `wlan0` is down |
-| Computer | `dell` | `192.168.0.103` | Gateway is the Pi. Older docs say `.105`; the live address is `.103` |
+| Computer | `dell` | `192.168.0.105` | Gateway is the Pi. Older docs say `.103`; the live address is `.105` |
 | Phone | Android | `192.168.0.185` | Client, static IP. Gateway is the Pi; no VPN app on the phone |
 | Router | — | `192.168.0.1` | Default gateway for the whole network |
 

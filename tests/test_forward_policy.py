@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.join(ROOT, "gateway"))
 
 import forward_policy as fp  # noqa: E402
 
-DELL = "192.168.0.103"
+DELL = "192.168.0.105"
 ANDROID = "192.168.0.185"
 
 
