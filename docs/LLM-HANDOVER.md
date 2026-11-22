@@ -11,7 +11,7 @@ Evidence labels:
 
 Dates are 2026-11-14 unless stated. Times are +03:00.
 
-**Default host: `pi`.** Unless a command or section names another host, it runs on the Pi (`pi5home`, `192.168.0.118`, user `bliss`). Dell (`dell`, currently `192.168.0.103`; older docs say `.105`) and Android (`192.168.0.185`) are always named explicitly.
+**Default host: `pi`.** Unless a command or section names another host, it runs on the Pi (`pi5home`, `192.168.0.118`, user `bliss`). Dell (`dell`, currently `192.168.0.105` on profile `TP-Link_42SN_5G`; older docs say `.103`) and Android (`192.168.0.185`) are always named explicitly.
 
 ---
 
@@ -20,7 +20,7 @@ Dates are 2026-11-14 unless stated. Times are +03:00.
 - A **one-click install** on a Raspberry Pi 5, which shares its Happ VPN with other devices on the home network.
 - **Day-to-day use:** the user turns Happ ON or OFF in the Happ GUI, as usual. The gateway follows that choice automatically. There is no second step.
 - The only manual steps on client devices are a **one-time Wi-Fi setting**: set the Pi as the default gateway.
-- Clients in scope: Android (`192.168.0.185`) and the Ubuntu computer `dell` (currently `192.168.0.103`; older docs say `.105`).
+- Clients in scope: Android (`192.168.0.185`) and the Ubuntu computer `dell` (currently `192.168.0.105`; older docs say `.103`).
 - **IPv4 only.** IPv6 is not forwarded and not NAT'd.
 
 Behaviour the user expects:
@@ -43,7 +43,7 @@ The user accepted this design on 2026-11-14 with the trace-based approach descri
 | Host | Address | Role | Notes |
 |---|---|---|---|
 | Pi `pi5home` (**default host**) | `192.168.0.118` on `eth0` | Gateway host. Watcher, forwarding controller, and baseline installed and running | Raspberry Pi 5, Debian 13 (trixie), aarch64, kernel 6.18.29+rpt-rpi-2712. User `bliss`, SSH key login (`ssh bliss@192.168.0.118`). `wlan0` is down. Passwordless `sudo` only for the read-only rule |
-| Dell `dell` | `192.168.0.103` on `wlp8s0` | Client. Gateway is the Pi | Ubuntu 24.04, kernel 6.17, x86_64. Older docs say `.105`; the live address is `.103`. Runs its own Happ 2.17.1 |
+| Dell `dell` | `192.168.0.105` on `wlp8s0` (profile `TP-Link_42SN_5G`) | Client. Gateway is the Pi | Ubuntu 24.04, kernel 6.17, x86_64. Older docs say `.103`; the live address is `.105` (VERIFIED 2026-11-22). Runs its own Happ 2.17.1 |
 | Android | `192.168.0.185` (static, USER) | Client | MAC `f0:35:75:23:34:62`. Gateway, prefix and DNS not confirmed |
 | Router | `192.168.0.1` | LAN default gateway | |
 
@@ -370,7 +370,7 @@ git log --oneline -5
 18. **Still open 2026-11-15:** IPv6; whether to push the local commits; the reboot-with-Happ-OFF gap.
 19. **Tested 2026-11-15 20:18, Happ OFF:** `ORDINARY`, Dell HTTPS 200, Dell exit = home ISP `46.8.62.23`, `happ-xray` gone. The OFF path works.
 20. **Dell's Happ is off at the USER's request and must not be enabled again.** `happd` still runs without a tunnel; Dell's routing does not use it.
-21. **Known gap (2026-11-15):** with Happ OFF, a Pi reboot or a watcher restart publishes `intent=UNKNOWN`, so the controller applies `BLOCK` and clients lose internet until Happ is toggled ON and OFF. The state file is on `/run` (tmpfs). Fix: persist the user's last explicit choice and use it only when the tunnel is down. Needs approval.
+21. **Known gap (2026-11-15), fixed in code 2026-11-22:** with Happ OFF, a Pi reboot or a watcher restart published `intent=UNKNOWN`, so the controller applied `BLOCK`. Fix: the user's last explicit choice is saved on disk and used only while the tunnel is down. Reboot test pending (section 10b).
 
 ---
 
@@ -392,7 +392,11 @@ git log --oneline -5
 | 2026-11-14 | Create a new `CLAUDE.md` (replaces the removed one) | USER |
 | 2026-11-14 | `scripts/new-host-setup.sh` installs everything needed and runs the watcher at boot | USER |
 | 2026-11-14 03:02 | Installer run on the Pi by the user. Watcher and baseline units enabled and active | USER |
-| Pending | After reboot with Happ OFF, clients stay blocked until Happ is toggled. Accept, or find another safe signal | USER |
+| 2026-11-22 | Remember the last explicit ON/OFF on disk; use a remembered OFF only while the tunnel is down (implemented, deployed; a real reboot test is still pending) | USER ("do it") |
+| 2026-11-22 | Android DNS: encrypted DNS forwarder (unbound, DoT) on the Pi, phone DNS set to `192.168.0.118` (done) | USER ("run a small encrypted DNS forwarder") |
+| 2026-11-22 | Client rules: Dell `192.168.0.105` (done, Pi updated) | USER ("update Client address rules") |
+| Pending | Test a Pi reboot with Happ OFF (expect ORDINARY instead of BLOCK) | USER (needs approval: reboot, Happ OFF) |
+| Pending | Push the local commits from 2026-11-22 | USER |
 | Pending | Build the GUI watcher (read-only first) | — |
 | Pending | Build the gateway controller, dry-run first | — |
 | Pending | Any firewall, routing, or sysctl change on the Pi | — (needs approval per step) |
@@ -417,6 +421,19 @@ git log --oneline -5
 - Tested 2026-11-15 20:18 with Happ OFF: `ORDINARY`, Dell HTTPS 200, Dell exit `46.8.62.23` (home ISP), no `happ-xray`.
 - Dell's Happ is off at the USER's request and must not be enabled again.
 - Known gap: after a Pi reboot (or a watcher restart) with Happ OFF, the intent is `UNKNOWN` -> `BLOCK` until Happ is toggled. The state file is on tmpfs. Fix requires persisting the last explicit choice (needs approval).
+
+---
+
+## 10b. 2026-11-22 update (read this first)
+
+- **Reboot gap: fixed in code and deployed, reboot test pending.** The watcher saves each explicit ON/OFF to `/var/lib/vpn-gateway/last_choice.json` and publishes it as `last_choice` in `/run/vpn-gateway/state.json`. `gateway_mode.decide()` returns ORDINARY only for intent `UNKNOWN` + remembered `DISABLED` + tunnel down. Verified on the Pi: state carries `last_choice=ENABLED`; a simulated remembered OFF with the tunnel up gives BLOCK. Not verified: a real reboot with Happ OFF.
+- **Android "no internet" root cause (VERIFIED 2026-11-22):** UDP DNS through the Happ tunnel gets no reply, so names do not resolve. TCP works. Encrypted DNS (TCP 853) works through the tunnel. Android Private DNS overrides the Wi-Fi DNS, so the phone must have Private DNS **Off**.
+- **Fix:** Debian `unbound` on the Pi listens on `192.168.0.118:53` (LAN only) and forwards to `8.8.8.8` and `8.8.4.4` on port 853 (DNS over TLS). The config is in the repo as `dns/unbound-vpn-gateway.conf`. Installing it also changed the Pi's `/etc/resolv.conf` to `127.0.0.1`, so the Pi's own DNS goes through the same forwarder. Rollback is in `docs/RUNNING-LOG.md`.
+- **Client rules:** Dell is `192.168.0.105`. `DEFAULT_CLIENTS` in `gateway/forward_policy.py` is updated, and the Pi's controller is updated (backup in `/var/backups/vpn-gateway/2026-11-22-clients/`).
+- **Dell's gateway** is set on `TP-Link_42SN_5G` (the old profile `TP-Link_42SN` no longer exists). The route goes through the Pi.
+- **Code comments (2026-11-22):** the four gateway modules have explanatory comments. An AST comparison with the previous commit showed no code changes, only docstring wording.
+- **Open:** a Pi reboot test with Happ OFF; pushing the local commits; IPv6.
+- **Not in the installer:** the DNS forwarder and the `/var/lib/vpn-gateway` directory. `new-host-setup.sh --uninstall` does not remove the saved choice file.
 
 ---
 

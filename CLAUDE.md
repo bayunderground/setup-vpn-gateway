@@ -15,7 +15,11 @@ Client routing, decided by the user (2026-11-14):
 - Happ OFF on the Pi: Dell and Android go without VPN, through the router path.
 - Unknown or stale state: blocked (rule 1).
 
-## Current state (2026-11-15)
+## Current state (2026-11-22)
+
+- **Phone DNS (2026-11-22, VERIFIED):** the phone uses the Pi as DNS (`192.168.0.118`) through `unbound` on the Pi, which forwards over DNS-over-TLS (port 853). Plain UDP DNS through the Happ tunnel gets no reply. The phone's Private DNS must be **Off**, or Android bypasses the Pi. Config: `dns/unbound-vpn-gateway.conf`.
+- **Client rules (2026-11-22):** Dell is `192.168.0.105` (profile `TP-Link_42SN_5G`). The Pi's controller is updated.
+- **Reboot with Happ OFF (2026-11-22):** fixed in code and deployed. The saved choice in `/var/lib/vpn-gateway/last_choice.json` is used only while the tunnel is down. A real reboot test is still pending.
 
 - `scripts/new-host-setup.sh` installs the watcher, the forwarding controller, the read-only sudo rule, the boot baseline, and a project-owned IPv4 forwarding sysctl. `--uninstall` removes them and the project table.
 - `gateway/happ_watch.py` (`vpn-gateway-watch.service`, read-only): reads the Happ GUI's control messages and publishes the user's intent to `/run/vpn-gateway/state.json`.

@@ -8,7 +8,7 @@ Default device: the Raspberry Pi (`pi5home`). Commands on this page run on the P
 
 This project lets several devices in your home (an Android phone and a Linux computer called `dell`) use the Happ VPN through a single device, a Raspberry Pi 5 called `pi5home`. Traffic from those devices leaves the house through the VPN, without each device needing its own setup.
 
-**Current state (2026-11-15):** the Pi shares its Happ VPN with `dell` and the phone. Both are set to use the Pi (`192.168.0.118`) as their gateway. When Happ is ON, their internet exits through the Pi's VPN; when Happ is OFF, it goes through the router. This is confirmed working: the phone has no VPN app of its own, and its public address is a VPN address (`152.233.43.93`), not the home connection's own address (`46.8.62.23`).
+**Current state (2026-11-22):** the Pi shares its Happ VPN with `dell` and the phone. Both are set to use the Pi (`192.168.0.118`) as their gateway. When Happ is ON, their internet exits through the Pi's VPN; when Happ is OFF, it goes through the router. The phone's DNS is answered by a small encrypted DNS forwarder on the Pi (`192.168.0.118`, see "Phone DNS" below). This is confirmed working: the phone's public address is a VPN address (for example `152.233.43.93`), not the home connection's own address (`46.8.62.23`).
 
 ## Devices and addresses
 
@@ -31,6 +31,8 @@ Open the Pi from another computer: `ssh bliss@192.168.0.118`
 | Share the Pi's VPN with the phone | Done (2026-11-15). The phone's gateway is the Pi; its public address is a VPN address |
 | Blocking clients when the VPN drops or the state is unclear | Done. Unknown or stale state means blocked |
 | Fail closed if a traffic rule cannot be applied | Done. The controller falls back to blocked, not to the normal path |
+| Phone DNS through the Pi | Done (2026-11-22). Encrypted DNS forwarder on the Pi; the phone must use `192.168.0.118` as DNS (see below) |
+| Happ OFF survives a Pi reboot | Done in code (2026-11-22), deployed. Not yet tested with a real reboot |
 
 ## How the ON/OFF choice is followed
 
@@ -42,13 +44,16 @@ The Pi can see the VPN process, but not whether **you** want it on. The watcher 
 
 If a new ruleset cannot be applied, the controller falls back to **blocked** rather than leaving the normal path open. It never flushes the global nftables ruleset and never enables `nftables.service`.
 
+**After a reboot.** The state file lives in `/run`, which is cleared at boot. So the watcher also saves your last explicit ON or OFF to `/var/lib/vpn-gateway/last_choice.json`. After a reboot, a saved OFF is used only while the tunnel is down. A live tunnel, a saved ON, or no saved choice still blocks clients.
+
 ## What you need to do
 
 1. **Android gateway — done (2026-11-15).** The phone's gateway is `192.168.0.118` and it has no VPN app, so its traffic goes through the Pi. Confirmed: the phone's public address is a VPN address (`152.233.43.93`), while the home connection's own address is `46.8.62.23`.
 2. **The computer's VPN (Happ on `dell`).** Do you still use Happ on that computer? If not, should it be removed or left as it is? Nothing will be changed on it until you answer.
 3. **Happ OFF test — done (2026-11-15).** With Happ OFF the controller reports `ORDINARY` and `dell` still has internet through the router, at the home address `46.8.62.23`.
 
-4. **After a Pi reboot with Happ OFF, clients lose internet until Happ is toggled ON and OFF once.** The Pi cannot see your OFF choice after a restart, so it blocks rather than guessing. This is a real gap when you keep Happ OFF; it can be fixed by remembering your last choice across reboots.
+4. **After a Pi reboot with Happ OFF — fixed in code (2026-11-22), not yet tested with a real reboot.** The Pi remembers your last explicit OFF and uses it while the tunnel is down. Before this fix, clients stayed blocked until Happ was toggled. A reboot test (with Happ OFF) still needs your approval.
+5. **Phone DNS — set once on the phone.** In the phone's Wi-Fi settings for this network, set DNS to `192.168.0.118`. Also set Settings → Network → **Private DNS** to **Off**: Android's Private DNS overrides the Wi-Fi DNS, so the phone would skip the Pi's forwarder.
 
 ## How to tell whether a device uses the VPN
 
@@ -69,6 +74,8 @@ git clone https://github.com/bayunderground/setup-vpn-gateway.git ~/setup-vpn-ga
 The script installs packages (including `strace`), keeps nftables off, checks Happ, updates the project, installs a sudo rule for checks without a password, starts the Happ watcher at every boot, installs the forwarding controller at every boot (project table `ip vpn_gateway` only), and enables IPv4 forwarding with `/etc/sysctl.d/90-vpn-gateway.conf`. The controller follows the Happ GUI: ON -> VPN_EXIT, OFF -> ORDINARY, unknown -> BLOCK. The read-only report goes to `/var/log/vpn-gateway/boot-baseline.log`. To remove everything it added: `bash ~/setup-vpn-gateway/scripts/new-host-setup.sh --uninstall` (it removes the units, the project table, and the sysctl file; IPv4 forwarding stays on until the next boot).
 
 Happ is installed separately, with its own installer. The script tells you if Happ is missing.
+
+**Phone DNS forwarder (not in the installer yet).** On 2026-11-22 the Pi got a DNS forwarder by hand: the Debian package `unbound`, with the config saved in this repo as `dns/unbound-vpn-gateway.conf` (it is installed on the Pi as `/etc/unbound/unbound.conf.d/vpn-gateway-dns.conf`). It listens on `192.168.0.118:53` for the home network and sends queries to Google's DNS over TLS (port 853), because plain UDP DNS gets no reply through the Happ tunnel. Note: installing `unbound` also points the Pi's own `/etc/resolv.conf` at this forwarder.
 
 ## Safety rules
 
