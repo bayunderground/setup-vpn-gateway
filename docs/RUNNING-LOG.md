@@ -357,3 +357,14 @@ USER approval: "do all of it, I will enter a password." Sudo password supplied b
 
 - The live config on the Pi (`/etc/unbound/unbound.conf.d/vpn-gateway-dns.conf`) is copied to `dns/unbound-vpn-gateway.conf` with an installation note. Content matches the live file.
 - The Pi's copy of the repo is updated separately with `git pull --ff-only`.
+
+## 2026-11-22: reboot gap fixed in code and deployed to the Pi
+
+- USER request: "do it" (the code change for the Happ-OFF reboot gap).
+- Repo: the watcher saves the user's explicit ON/OFF to `/var/lib/vpn-gateway/last_choice.json` (only on an observed user stop or start, never on UNKNOWN or TRANSITION) and publishes it as `last_choice` in the state file. `gateway_mode.decide()` returns ORDINARY only for intent UNKNOWN + remembered DISABLED + tunnel down. Tests: 70 pass (`python3 -m unittest discover -s tests`).
+- Pi (sudo through the desktop dialog, password on stdin only): backed up the three installed files to `/var/backups/vpn-gateway/2026-11-22-reboot-gap/*.before`; installed the new `happ_watch.py`, `gateway_mode.py`, `forward_apply.py` into `/usr/local/lib/vpn-gateway/`; restarted `vpn-gateway-watch.service` and `vpn-gateway-forward.service`.
+- VERIFIED after deploy: both services active; the watcher saved `ENABLED` to `/var/lib/vpn-gateway/last_choice.json`; state `last_choice=ENABLED`; controller `VPN_EXIT`; table `ip vpn_gateway` still has 2 client addresses.
+- VERIFIED: with a simulated state (intent UNKNOWN, last_choice DISABLED) and the tunnel up, the deployed `gateway_mode.py` returns BLOCK, as designed.
+- NOT tested: an actual Pi reboot with Happ OFF. The expected result is ORDINARY instead of BLOCK. Testing it needs a reboot and turning Happ OFF, which needs the user's approval.
+- Side effect during the restart: for a few seconds the watcher reported UNKNOWN, so the controller applied BLOCK until Happ was re-observed as ENABLED. Clients may have lost internet for a short moment.
+- Rollback: copy the `.before` files from the backup directory back to `/usr/local/lib/vpn-gateway/` and restart both services. `/var/lib/vpn-gateway/last_choice.json` can be deleted; it is not used by the old code.

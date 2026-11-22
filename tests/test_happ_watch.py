@@ -162,6 +162,51 @@ class StateTests(unittest.TestCase):
         self.assertNotIn("xray-core", " ".join(printed))
 
 
+class ChoiceTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.path = os.path.join(self.tmp.name, "var-lib", "last_choice.json")
+
+    def test_user_off_is_remembered(self):
+        state = hw.State()
+        state.apply(("stop_request",))
+        state.apply(("finished", "0"))
+        hw.record_choice(state, self.path)
+        self.assertEqual(hw.load_last_choice(self.path), "DISABLED")
+
+    def test_crash_is_not_remembered_as_off(self):
+        state = hw.State()
+        state.apply(("started",))
+        state.apply(("crashed",))
+        hw.record_choice(state, self.path)
+        self.assertEqual(hw.load_last_choice(self.path), "ENABLED")
+
+    def test_unknown_is_not_written(self):
+        hw.record_choice(hw.State(), self.path)
+        self.assertFalse(os.path.exists(self.path))
+        self.assertIsNone(hw.load_last_choice(self.path))
+
+    def test_missing_or_garbage_file_loads_as_none(self):
+        self.assertIsNone(hw.load_last_choice(self.path))
+        os.makedirs(os.path.dirname(self.path))
+        with open(self.path, "w") as f:
+            f.write("not json")
+        self.assertIsNone(hw.load_last_choice(self.path))
+
+    def test_state_remembers_loaded_choice_and_publishes_it(self):
+        os.makedirs(os.path.dirname(self.path))
+        with open(self.path, "w") as f:
+            json.dump({"choice": "DISABLED", "updated": "2026-11-22T20:00:00+03:00"}, f)
+        state = hw.State()
+        state.last_choice = hw.load_last_choice(self.path)
+        target = os.path.join(self.tmp.name, "run", "state.json")
+        with mock.patch.object(hw, "STATE_PATH", target):
+            hw.publish(state, 0)
+        with open(target) as f:
+            self.assertEqual(json.load(f)["last_choice"], "DISABLED")
+
+
 class PublishTests(unittest.TestCase):
     def test_publish_writes_atomic_json(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -177,7 +222,7 @@ class PublishTests(unittest.TestCase):
             self.assertEqual(doc["happd_pid"], 990)
             self.assertIn("updated", doc)
             self.assertEqual(oct(os.stat(target).st_mode & 0o777), "0o644")
-            leftovers = [n for n in os.listdir(os.path.dirname(target)) if n.startswith(".state-")]
+            leftovers = [n for n in os.listdir(os.path.dirname(target)) if n.startswith(".tmp-")]
             self.assertEqual(leftovers, [])
 
 

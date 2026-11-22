@@ -42,6 +42,7 @@ import time
 from datetime import datetime, timezone
 
 STATE_PATH = "/run/vpn-gateway/state.json"
+CHOICE_PATH = "/var/lib/vpn-gateway/last_choice.json"
 HAPPD_SOCK = "/tmp/happd.sock"
 PROCESS_ID = "xray-core"
 PUBLISH_EVERY = 5.0
@@ -96,6 +97,7 @@ class State:
         self.process = "unknown"
         self.reason = "watcher started"
         self.pending_stop = False
+        self.last_choice = None
 
     def set(self, intent, process, reason):
         changed = (intent, process) != (self.intent, self.process)
@@ -142,6 +144,18 @@ def now_iso():
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
 
 
+def write_json_atomic(path, doc):
+    directory = os.path.dirname(path)
+    os.makedirs(directory, mode=0o755, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=directory, prefix=".tmp-")
+    with os.fdopen(fd, "w") as f:
+        json.dump(doc, f)
+        f.flush()
+        os.fsync(f.fileno())
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, path)
+
+
 def publish(state, happd_pid):
     doc = {
         "intent": state.intent,
@@ -149,16 +163,31 @@ def publish(state, happd_pid):
         "reason": state.reason,
         "updated": now_iso(),
         "happd_pid": happd_pid,
+        "last_choice": state.last_choice,
     }
-    directory = os.path.dirname(STATE_PATH)
-    os.makedirs(directory, mode=0o755, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=directory, prefix=".state-")
-    with os.fdopen(fd, "w") as f:
-        json.dump(doc, f)
-        f.flush()
-        os.fsync(f.fileno())
-    os.chmod(tmp, 0o644)
-    os.replace(tmp, STATE_PATH)
+    write_json_atomic(STATE_PATH, doc)
+
+
+def load_last_choice(path=CHOICE_PATH):
+    """The user's last explicit choice from disk, or None. Survives reboots."""
+    try:
+        with open(path) as f:
+            choice = json.load(f).get("choice")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return choice if choice in ("ENABLED", "DISABLED") else None
+
+
+def record_choice(state, path=CHOICE_PATH):
+    """Remember an explicit ON or OFF. UNKNOWN and TRANSITION are never remembered."""
+    if state.intent not in ("ENABLED", "DISABLED") or state.intent == state.last_choice:
+        return
+    try:
+        write_json_atomic(path, {"choice": state.intent, "updated": now_iso()})
+    except OSError as err:
+        log(f"could not save the choice to {path}: {err}")
+        return
+    state.last_choice = state.intent
 
 
 def log(message):
@@ -244,6 +273,7 @@ def watch(pid, state):
                     for event in parse_line(raw.decode(errors="replace")):
                         if state.apply(event):
                             log(f"intent={state.intent} process={state.process} ({state.reason})")
+                            record_choice(state)
                             publish(state, pid)
                             last_publish = time.time()
             if time.time() - last_publish >= PUBLISH_EVERY:
@@ -256,8 +286,9 @@ def watch(pid, state):
 
 def run_service():
     state = State()
+    state.last_choice = load_last_choice()
     publish(state, 0)
-    log("watcher started; state UNKNOWN until the GUI is observed")
+    log(f"watcher started; state UNKNOWN until the GUI is observed (last saved choice: {state.last_choice})")
     while True:
         pid = happd_pid()
         if not pid:
@@ -271,6 +302,7 @@ def run_service():
         if probe_status() == "running" and state.intent == "UNKNOWN":
             state.set("ENABLED", "up", "xray running when the watcher attached")
             log("intent=ENABLED process=up (xray running at attach)")
+            record_choice(state)
         publish(state, pid)
         try:
             watch(pid, state)

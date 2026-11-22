@@ -36,6 +36,23 @@ class DecideTests(unittest.TestCase):
         self.assertEqual(gm.decide("DISABLED", "down", False, False)[0], "BLOCK")
         self.assertEqual(gm.decide("ENABLED", "up", True, False)[0], "BLOCK")
 
+    def test_restart_after_user_off_uses_ordinary_path_when_tunnel_down(self):
+        mode, reason = gm.decide("UNKNOWN", "unknown", False, True, "DISABLED")
+        self.assertEqual(mode, "ORDINARY")
+        self.assertIn("last explicit user choice", reason)
+
+    def test_remembered_off_never_overrides_a_live_tunnel(self):
+        self.assertEqual(gm.decide("UNKNOWN", "up", True, True, "DISABLED")[0], "BLOCK")
+        self.assertEqual(gm.decide("UNKNOWN", "unknown", True, True, "DISABLED")[0], "BLOCK")
+
+    def test_remembered_on_or_nothing_still_blocks_after_restart(self):
+        self.assertEqual(gm.decide("UNKNOWN", "unknown", False, True, "ENABLED")[0], "BLOCK")
+        self.assertEqual(gm.decide("UNKNOWN", "unknown", False, True, None)[0], "BLOCK")
+
+    def test_remembered_off_does_not_help_other_intents_or_stale_state(self):
+        self.assertEqual(gm.decide("TRANSITION", "unknown", False, True, "DISABLED")[0], "BLOCK")
+        self.assertEqual(gm.decide("UNKNOWN", "unknown", False, False, "DISABLED")[0], "BLOCK")
+
     def test_only_disabled_or_vpn_exit_allow_traffic(self):
         allowed = {"ORDINARY", "VPN_EXIT"}
         for intent in ("ENABLED", "DISABLED", "TRANSITION", "UNKNOWN", "garbage"):
@@ -81,6 +98,16 @@ class ReadStateTests(unittest.TestCase):
     def test_future_timestamp_is_not_fresh(self):
         path = self.write({"intent": "DISABLED", "process": "down", "updated": stamp(-600)})
         self.assertEqual(gm.read_state(path, time.time())[2], False)
+
+    def test_remembered_choice_is_read_from_state(self):
+        path = self.write({"intent": "UNKNOWN", "process": "unknown", "updated": stamp(0), "last_choice": "DISABLED"})
+        self.assertEqual(gm.read_last_choice(path), "DISABLED")
+
+    def test_remembered_choice_missing_or_invalid_is_none(self):
+        self.assertIsNone(gm.read_last_choice("/nonexistent/state.json"))
+        self.assertIsNone(gm.read_last_choice(self.write("not json")))
+        self.assertIsNone(gm.read_last_choice(self.write({"intent": "UNKNOWN", "updated": stamp(0)})))
+        self.assertIsNone(gm.read_last_choice(self.write({"last_choice": "UNKNOWN", "updated": stamp(0)})))
 
 
 if __name__ == "__main__":

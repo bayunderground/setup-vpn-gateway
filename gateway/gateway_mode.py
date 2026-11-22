@@ -7,6 +7,11 @@ Reads the watcher's state file and the tunnel interface, and prints one decision
   VPN_EXIT  Happ is ENABLED, the tunnel process is up, and the tunnel interface is up.
   BLOCK     Anything else. Client internet must not leave by the normal connection.
 
+After a Pi reboot the watcher may only know UNKNOWN. If the user's last explicit
+choice (remembered by the watcher on disk) was OFF and the tunnel is down, the
+decision is ORDINARY. A remembered ON, no remembered choice, or a live tunnel
+still blocks.
+
 This program changes nothing. Applying the decision to nftables and routing is a
 separate step that has not been approved yet.
 
@@ -24,7 +29,7 @@ TUNNEL = "happ-xray"
 STALE_AFTER = 15.0
 
 
-def decide(intent, process, tunnel_up, fresh):
+def decide(intent, process, tunnel_up, fresh, last_choice=None):
     if not fresh:
         return "BLOCK", "state missing, unreadable, or stale"
     if intent == "DISABLED":
@@ -33,6 +38,8 @@ def decide(intent, process, tunnel_up, fresh):
         return "VPN_EXIT", "Happ enabled, process up, tunnel up"
     if intent == "ENABLED":
         return "BLOCK", "Happ enabled but tunnel not ready"
+    if intent == "UNKNOWN" and last_choice == "DISABLED" and not tunnel_up and process != "up":
+        return "ORDINARY", "watcher restarted; last explicit user choice was OFF and the tunnel is down"
     return "BLOCK", f"intent {intent} is not a safe state"
 
 
@@ -50,6 +57,16 @@ def read_state(path, now):
         return intent, process, fresh
     except (OSError, ValueError, KeyError, TypeError):
         return "UNKNOWN", "unknown", False
+
+
+def read_last_choice(path):
+    """Return the user's last explicit choice ("ENABLED" or "DISABLED") from the state file, or None."""
+    try:
+        with open(path) as f:
+            choice = json.load(f).get("last_choice")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return choice if choice in ("ENABLED", "DISABLED") else None
 
 
 def tunnel_up():
@@ -75,10 +92,12 @@ def main(argv):
         return 2
     now = time.time()
     intent, process, fresh = read_state(path, now)
+    last_choice = read_last_choice(path)
     up = tunnel_up()
-    mode, reason = decide(intent, process, up, fresh)
+    mode, reason = decide(intent, process, up, fresh, last_choice)
     print(json.dumps({"mode": mode, "reason": reason, "intent": intent,
-                      "process": process, "tunnel_up": up, "fresh": fresh}))
+                      "process": process, "tunnel_up": up, "fresh": fresh,
+                      "last_choice": last_choice}))
     return 0
 
 

@@ -107,8 +107,9 @@ class Controller:
 def decide_now(state_path=gm.STATE_PATH):
     now = time.time()
     intent, process, fresh = gm.read_state(state_path, now)
+    last_choice = gm.read_last_choice(state_path)
     up = gm.tunnel_up()
-    mode, _reason = gm.decide(intent, process, up, fresh)
+    mode, _reason = gm.decide(intent, process, up, fresh, last_choice)
     return mode
 
 
