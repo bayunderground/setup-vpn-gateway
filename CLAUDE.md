@@ -8,7 +8,7 @@ Instructions for AI assistants working in this repository. Read this first, then
 
 Access: `ssh bliss@192.168.0.118` (from Dell). The Pi's `sudo` and Dell's `sudo` need a password. Never store it in the repo, logs, or shell history.
 
-A one-click install for a Raspberry Pi 5 (`pi5home`, `192.168.0.118`) that shares its Happ VPN with the home network. Clients are an Android phone (`192.168.0.185`) and the Ubuntu computer `dell` (currently `192.168.0.103`; older docs say `.105`). Clients are pointed at the Pi once, in their Wi-Fi settings. The user turns Happ ON and OFF in the Happ GUI, and the gateway follows that choice.
+A one-click install for a Raspberry Pi 5 (`pi5home`, `192.168.0.118`) that shares its Happ VPN with the home network. Clients are an Android phone (`192.168.0.185`) and the Ubuntu computer `dell` (currently `192.168.0.105`, on profile `TP-Link_42SN_5G`; older docs say `.103`). Clients are pointed at the Pi once, in their Wi-Fi settings. The user turns Happ ON and OFF in the Happ GUI, and the gateway follows that choice.
 
 Client routing, decided by the user (2026-11-14):
 - Happ ON on the Pi: Dell and Android go through Happ (`happ-xray`).
@@ -82,6 +82,7 @@ Client routing, decided by the user (2026-11-14):
 | `gateway/forward_policy.py` | Builds the project nftables ruleset for a mode (pure) |
 | `gateway/forward_apply.py` | Root controller that applies the ruleset on mode change (service) |
 | `scripts/baseline-readonly.sh` | Read-only baseline report |
+| `dns/unbound-vpn-gateway.conf` | Pi DNS forwarder for the phone (unbound, DNS over TLS through Happ). Live copy on the Pi in `/etc/unbound/unbound.conf.d/` |
 | `scripts/happd-observe.py` | Passive socket observer (proved observers get no lifecycle events) |
 | `tests/` | Unit tests for the watcher, the mode decision, the ruleset, and the controller |
 | `README.md`, `README_RU.md` | User-facing overview and install instructions |

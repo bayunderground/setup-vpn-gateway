@@ -343,3 +343,17 @@ USER approval: "do all of it, I will enter a password." Sudo password supplied b
 - Side effect: Debian's `unbound-resolvconf.service` (enabled) changed the Pi's `/etc/resolv.conf` to `nameserver 127.0.0.1`. The Pi's own DNS now goes through this forwarder too.
 - Rollback: `sudo systemctl disable --now unbound`; `sudo apt-get purge unbound`; `sudo rm /etc/unbound/unbound.conf.d/vpn-gateway-dns.conf`. Then check that `/etc/resolv.conf` shows `nameserver 192.168.0.1` again, and fix it by hand if it does not.
 - Still needed: set the phone's Wi-Fi DNS to `192.168.0.118` (the phone's own settings, not changed by the Pi). Then verify from the phone.
+
+## 2026-11-22: client address rules updated to Dell `.105` (executed)
+
+- USER request: "update Client address rules". Dell's live address is `192.168.0.105` (profile `TP-Link_42SN_5G`, VERIFIED with `ip -4 addr` on Dell).
+- Repo: `gateway/forward_policy.py` `DEFAULT_CLIENTS` is now `(192.168.0.105, 192.168.0.185)`; `tests/test_forward_policy.py` updated. `python3 -m unittest discover -s tests`: 59 tests OK.
+- Pi (sudo through the desktop dialog, password on stdin only): backed up the installed file to `/var/backups/vpn-gateway/2026-11-22-clients/forward_policy.py.before`; installed the new `forward_policy.py` into `/usr/local/lib/vpn-gateway/`; restarted `vpn-gateway-forward.service`.
+- VERIFIED: the service is active; `ip vpn_gateway` forwards and NATs `192.168.0.105` and `192.168.0.185` out `happ-xray`. Dell `example.com` HTTPS 200.
+- Rollback: copy `/var/backups/vpn-gateway/2026-11-22-clients/forward_policy.py.before` back to `/usr/local/lib/vpn-gateway/forward_policy.py` and restart `vpn-gateway-forward.service`.
+- Docs: `README.md`, `README_RU.md`, `CLAUDE.md` now give Dell as `.105`.
+
+## 2026-11-22: DNS forwarder config saved in the repo
+
+- The live config on the Pi (`/etc/unbound/unbound.conf.d/vpn-gateway-dns.conf`) is copied to `dns/unbound-vpn-gateway.conf` with an installation note. Content matches the live file.
+- The Pi's copy of the repo is updated separately with `git pull --ff-only`.
