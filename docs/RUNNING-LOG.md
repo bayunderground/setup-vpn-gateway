@@ -310,3 +310,36 @@ USER approval: "do all of it, I will enter a password." Sudo password supplied b
 - Known gap: a Pi reboot, or a restart of `vpn-gateway-watch.service`, with Happ OFF gives `intent=UNKNOWN` -> `BLOCK`, so clients lose internet until Happ is toggled ON and OFF. Simulated 2026-11-15: `{"mode": "BLOCK", "reason": "intent UNKNOWN is not a safe state"}`. The state file lives on `/run` (tmpfs), so the OFF choice does not survive a reboot.
 - IPv6: no global IPv6 on Pi or Dell at check time; not enforced.
 - Push: local commits only; nothing pushed to GitHub.
+
+## 2026-11-22: Dell gateway restored on the active Wi-Fi profile (executed)
+
+- Finding (VERIFIED 2026-11-22): the Pi rebooted at 19:13 MSK. The controller went BLOCK, then VPN_EXIT at 19:13:28 once Happ started. Dell was on profile `TP-Link_42SN_5G` (the old `TP-Link_42SN` profile no longer exists), with gateway `192.168.0.1`, so it bypassed the Pi. Dell address `192.168.0.105`.
+- USER approval: "fix it". Sudo password supplied through a desktop askpass dialog only; not written to disk or the chat.
+- Backup: `/tmp/opencode/dell-2026-11-22/TP-Link_42SN_5G.before.txt` (no secrets).
+- Change: `sudo nmcli connection modify TP-Link_42SN_5G ipv4.gateway 192.168.0.118` and `nmcli connection up TP-Link_42SN_5G`.
+- Rollback: `sudo nmcli connection modify TP-Link_42SN_5G ipv4.gateway 192.168.0.1 && sudo nmcli connection up TP-Link_42SN_5G`.
+- VERIFIED after: Dell default route `via 192.168.0.118 dev wlp8s0`; `example.com` HTTPS 200; Dell exit `45.131.111.15` equals the Pi exit `45.131.111.15`; the Pi's home address (eth0) is `46.8.62.239`.
+- Still open: the reboot gap (intent UNKNOWN -> BLOCK after a reboot with Happ OFF). The Android phone was not re-checked in this session.
+
+## 2026-11-22: Android "no internet" diagnosis (read-only, no host change)
+
+- VERIFIED: phone `192.168.0.185` (static, MAC f0:35:75:23:34:62), gateway `192.168.0.118`, DNS `8.8.8.8`, no VPN app. Phone sends traffic to the Pi (eth0) and the Pi forwards its TCP through `happ-xray` with masquerade `172.19.0.1`; TCP replies come back to the phone.
+- VERIFIED: UDP DNS through the Happ tunnel gets no replies. Phone queries to `8.8.8.8` and `8.8.4.4` (UDP 53) are sent and never answered. The Pi's own UDP DNS to `8.8.8.8` and `1.1.1.1` also times out; the Pi's resolver is `192.168.0.1`, which works.
+- VERIFIED: DNS over TLS (TCP 853) to `8.8.8.8` and `8.8.4.4` returns real answers through the tunnel from the Pi. DNS over TCP 53 to `8.8.8.8` times out.
+- Root cause (VERIFIED for the DNS symptom): the phone's plain UDP DNS to public resolvers is not answered through the tunnel, so names do not resolve and apps report "no internet".
+- Dell is not affected: its DNS is `192.168.0.1`.
+- The project kill-switch (`ip saddr 192.168.0.185 drop` for non-Happ egress) also blocks the phone from using the router as DNS. Routing phone DNS to `192.168.0.1` would need a policy change, which is a user decision.
+- No host change made in this entry.
+
+## 2026-11-22: DNS forwarder on the Pi for the Android phone (executed)
+
+- USER approval: "Run a small encrypted DNS forwarder on the Pi". Sudo password supplied through a desktop dialog and piped to `sudo -S` on stdin only; not stored.
+- Before: nothing listened on port 53 on the Pi; `unbound` not installed; Pi `/etc/resolv.conf` -> `nameserver 192.168.0.1`.
+- Installed: `unbound 1.26.2-0+deb13u1` (+ `ca-certificates` update, `libunbound8`, `libprotobuf-c1`, `libhiredis1.1.0`), `--no-install-recommends`.
+- Config (project-owned): `/etc/unbound/unbound.conf.d/vpn-gateway-dns.conf`. Listens on `192.168.0.118` and `127.0.0.1`; allows `192.168.0.0/24`; upstream `8.8.8.8@853#dns.google` and `8.8.4.4@853#dns.google` over DNS-over-TLS (forward-tls-upstream).
+- Service: `unbound` enabled and active. `unbound-checkconf` passed.
+- VERIFIED: a DNS query for `example.com` to `192.168.0.118` from Dell returns rcode 0 with 2 answers.
+- VERIFIED: the Pi's own `getent hosts example.com` resolves.
+- Side effect: Debian's `unbound-resolvconf.service` (enabled) changed the Pi's `/etc/resolv.conf` to `nameserver 127.0.0.1`. The Pi's own DNS now goes through this forwarder too.
+- Rollback: `sudo systemctl disable --now unbound`; `sudo apt-get purge unbound`; `sudo rm /etc/unbound/unbound.conf.d/vpn-gateway-dns.conf`. Then check that `/etc/resolv.conf` shows `nameserver 192.168.0.1` again, and fix it by hand if it does not.
+- Still needed: set the phone's Wi-Fi DNS to `192.168.0.118` (the phone's own settings, not changed by the Pi). Then verify from the phone.
