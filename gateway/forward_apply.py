@@ -32,32 +32,42 @@ import time
 import forward_policy as fp
 import gateway_mode as gm
 
+# How often the controller re-reads the state and the tunnel.
 TICK_SECONDS = 5.0
+# Scratch directory for the ruleset files handed to nft. It is on tmpfs (/run).
 WORK_DIR = "/run/vpn-gateway"
 MODES = ("VPN_EXIT", "ORDINARY", "BLOCK")
 SAFE_MODE = "BLOCK"
 
 
 def _run(argv):
+    """Run a command and return only its exit code. Output is captured and discarded."""
     return subprocess.run(argv, capture_output=True, text=True, check=False).returncode
 
 
 class Controller:
-    """Holds the last applied ruleset. `runner(argv) -> returncode` is injectable."""
+    """Holds the last applied ruleset. `runner(argv) -> returncode` is injectable so the
+    tests can replace nft with a fake and check the sequence of commands."""
 
     def __init__(self, runner=_run, clients=fp.DEFAULT_CLIENTS, work_dir=WORK_DIR):
         self.runner = runner
         self.clients = list(clients)
         self.work_dir = work_dir
+        # The exact ruleset text that is currently live, or None if unknown.
         self.applied = None
+        # The mode that is currently live.
         self.mode = None
+        # A short reason when the last apply failed, otherwise None.
         self.last_error = None
 
     def tick(self, mode):
         """Make the ruleset match `mode`. Returns the mode now in effect."""
         if mode not in MODES:
+            # An unexpected value from the decision code is treated as unsafe.
             mode = SAFE_MODE
         self._verify()
+        # Nothing to do when the live ruleset already matches. Without this check the
+        # table would be flushed and reloaded on every tick.
         if self.applied == fp.build_ruleset(mode, self.clients):
             return self.mode
         if self._apply(mode):
@@ -72,13 +82,16 @@ class Controller:
         text = fp.build_ruleset(mode, self.clients)
         path = self._write(text)
         try:
+            # Step 1: check the syntax without changing anything.
             if self.runner(["nft", "-c", "-f", path]) != 0:
                 self.last_error = f"{mode} ruleset failed nft -c; not applied"
                 return False
+            # Step 2: load it. The script itself flushes only the project table.
             if self.runner(["nft", "-f", path]) != 0:
                 self.last_error = f"{mode} ruleset failed nft -f; not applied"
                 return False
         finally:
+            # The file is removed whether or not the apply worked.
             try:
                 os.unlink(path)
             except OSError:
@@ -89,7 +102,8 @@ class Controller:
         return True
 
     def _verify(self):
-        """Forget the cached ruleset if the table was removed or flushed."""
+        """Forget the cached ruleset if the table was removed or flushed by someone else.
+        The next tick then re-applies it, so a removed table is restored within one tick."""
         if self.applied is not None and not self._table_present():
             self.applied = None
 
@@ -97,6 +111,7 @@ class Controller:
         return self.runner(["nft", "list", "table", "ip", fp.TABLE]) == 0
 
     def _write(self, text):
+        """Write the ruleset to a fresh temporary file and return its path."""
         os.makedirs(self.work_dir, exist_ok=True)
         fd, path = tempfile.mkstemp(prefix="forward-", suffix=".nft", dir=self.work_dir)
         with os.fdopen(fd, "w") as f:
@@ -105,6 +120,7 @@ class Controller:
 
 
 def decide_now(state_path=gm.STATE_PATH):
+    """Read the state file and the tunnel, and return the mode they imply right now."""
     now = time.time()
     intent, process, fresh = gm.read_state(state_path, now)
     last_choice = gm.read_last_choice(state_path)
@@ -115,6 +131,7 @@ def decide_now(state_path=gm.STATE_PATH):
 
 def main(argv):
     if "--once" in argv:
+        # One tick, for manual checks. Exit 1 when the mode could not be applied.
         c = Controller()
         mode = c.tick(decide_now())
         print(mode)
@@ -135,6 +152,7 @@ def main(argv):
                 print(f"forward_apply: BLOCK also failed: {block_exc!r}",
                       file=sys.stderr, flush=True)
                 mode = c.mode
+        # Log only when the mode or the error changes, so the journal stays short.
         status = (mode, c.last_error)
         if status != last_status:
             detail = f" ({c.last_error})" if c.last_error else ""
